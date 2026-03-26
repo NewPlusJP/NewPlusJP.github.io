@@ -3,18 +3,80 @@
 <head>
   <meta charset="UTF-8">
   <title>NewPlusJP</title>
-<meta name="description" content="Newの掲示板です！">
+<meta name="description" content="NewPlusJPの掲示板だよ！">
   <link rel="stylesheet" href="style.css">
   <script src="config.js"></script>
+  <script src="bbs.js"></script>
 </head>
 <body>
   <header>
-    <h1>Newホームページ</h1>
+    <h1>NewPlusJP</h1>
   </header>
-
-<div class="member-card">
+<div class="aa">
+<h1>広告</h1>
+<div class="aa">
+<div id="onecolor">
  <h2>Newとは？</h2>
+</div>
   <p>Discordで活動している界隈のことです！</br>
   交流をメインとした同盟です！</br>
-  参加については下記を参照。</p>
+  <a href="https://Rousoku740.github.io/New">詳しくはこちらから</a></p>
 </div>
+
+<section id="apply-section">
+<div id="onecolor">
+  <h2>同盟への加入申請</h2>
+</div>
+  <p>必要事項を記入して送信してください。管理者にメールが届きます！</p>
+  
+  <form id="contact-form" action="" method="POST">
+    <div class="form-group-inner">
+      <label for="discord-name">Discordユーザー名:</label><br>
+      <input type="text" id="discord-name" name="discord-name" placeholder="Name#0000" required>
+    </div>
+<div class="form-group-inner">
+      <label for="message">サーバー概要、宣伝文:</label><br>
+      <textarea id="message" name="message" rows="5" placeholder="この鯖は神！！たくさんBotあるよ！過疎も全然ない！" required></textarea>
+</div>
+    
+<button type="submit" class="submit-btn">申請を送る</button>
+  </form>
+</section>
+</div>
+
+<!-- フォームの宛先をJavaScriptで後からセットする魔法 -->
+<script src="config.js"></script>
+<script>
+  // config.jsで定義した FORMSPREE_ID を使って宛先を完成させる
+  if (typeof FORMSPREE_ID !== 'undefined') {
+    document.getElementById('contact-form').action = "https://formspree.io" + FORMSPREE_ID;
+  } else {
+    console.error("config.js が読み込めていないか、FORMSPREE_ID が定義されていません！");
+  }
+</script>
+
+<section class="aa" id="create-thread">
+  <div id="onecolor">
+    <h2>新規スレッドを作成する</h2>
+  </div>
+  <p>新しい話題を投稿しましょう。画像などはDiscordへ！</p>
+
+  <form id="thread-form" action="" method="POST">
+    <div class="form-group-inner">
+      <label for="thread-title">スレッドタイトル</label>
+      <input type="text" id="thread-title" name="subject" placeholder="タイトルを入力してください" required>
+    </div>
+
+  <div class="form-group-inner">
+      <label for="user-name">名前（省略可）</label>
+      <input type="text" id="user-name" name="name" placeholder="名無しさん">
+  </div>
+
+   <div class="form-group-inner">
+      <label for="content">本文</label>
+      <textarea id="content" name="content" rows="8" placeholder="ここに内容を書き込んでください" required></textarea>
+  </div>
+
+  <button type="submit" class="submit-btn">スレッドを作成する</button>
+  </form>
+</section>
