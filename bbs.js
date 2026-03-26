@@ -1,22 +1,35 @@
-// bbs.js
+// 1. Supabaseのライブラリと設定が読み込めているか確認
+const { createClient } = window.supabase; 
+console.log("Supabase URL:", SUPABASE_URL); // これがコンソールに出るかチェック
 
-// 1. Supabaseの初期化（config.jsの変数を使います）
-const { createClient } = supabase;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // 2. スレッド一覧を表示する関数
 async function loadThreads() {
+  console.log("loadThreads関数が実行されました"); 
   const container = document.getElementById('thread-container');
-  if (!container) return;
+  
+  if (!container) {
+    console.error("HTMLに thread-container が見つかりません！");
+    return;
+  }
 
+  // Supabaseからデータ取得
   const { data: threads, error } = await supabaseClient
     .from('threads')
     .select('*')
     .order('id', { ascending: false });
 
   if (error) {
-    console.error('データ取得エラー:', error);
-    container.innerHTML = '<p>スレッドの読み込みに失敗しました。</p>';
+    console.error('取得エラー:', error);
+    container.innerHTML = '<p>エラー: ' + error.message + '</p>';
+    return;
+  }
+
+  console.log("取得したデータ:", threads);
+
+  if (threads.length === 0) {
+    container.innerHTML = '<p>まだスレッドがありません。最初のスレを立ててみよう！</p>';
     return;
   }
 
@@ -32,27 +45,23 @@ async function loadThreads() {
 
 // 3. 送信ボタンが押された時の処理
 document.getElementById('thread-form').addEventListener('submit', async function(e) {
-  // ★重要：これでブラウザの勝手な送信（405エラー）を阻止！
   e.preventDefault();
+  console.log("送信ボタンが押されました");
 
   const title = document.getElementById('thread-title').value;
   const name = document.getElementById('user-name').value || "名無しさん";
   const content = document.getElementById('content').value;
 
-  console.log("送信中...");
-
-  // Supabaseにデータを送る
   const { error } = await supabaseClient
     .from('threads')
     .insert([{ title, name, content }]);
 
   if (error) {
-    alert("エラーが発生しました: " + error.message);
-    console.error(error);
+    alert("作成失敗: " + error.message);
   } else {
     alert("スレッドを作成しました！");
-    this.reset(); // 入力欄をきれいにする
-    loadThreads(); // リストを更新
+    this.reset();
+    loadThreads(); 
   }
 });
 
