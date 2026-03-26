@@ -5,12 +5,8 @@
   <title>NewPlusJP</title>
   <meta name="description" content="NewPlusJPの掲示板だよ！">
   <link rel="stylesheet" href="style.css">
-  
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script src="config.js"></script>
-
-<script src="bbs.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <header>
@@ -34,7 +30,7 @@
       </div>
       <p>必要事項を記入して送信してください。管理者にメールが届きます！</p>
       
-      <form id="contact-form">
+      <form id="contact-form" method="POST">
         <div class="form-group-inner">
           <label for="discord-name">Discordユーザー名:</label><br>
           <input type="text" id="discord-name" name="discord-name" placeholder="Name#0000" required>
@@ -83,7 +79,11 @@
     </form>
   </section>
 
+  <script src="config.js"></script>
+  <script src="bbs.js"></script>
+
   <script>
+    // Formspreeの設定
     if (typeof FORMSPREE_ID !== 'undefined') {
       document.getElementById('contact-form').action = "https://formspree.io/f/" + FORMSPREE_ID;
     }

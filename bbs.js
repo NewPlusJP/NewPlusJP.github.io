@@ -1,7 +1,6 @@
-// 1. Supabaseのライブラリと設定が読み込めているか確認
+// 1. Supabaseの初期化
+// window.supabase を使うことで読み込みエラーを防ぎます
 const { createClient } = window.supabase; 
-console.log("Supabase URL:", SUPABASE_URL); // これがコンソールに出るかチェック
-
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // 2. スレッド一覧を表示する関数
@@ -28,7 +27,7 @@ async function loadThreads() {
 
   console.log("取得したデータ:", threads);
 
-  if (threads.length === 0) {
+  if (!threads || threads.length === 0) {
     container.innerHTML = '<p>まだスレッドがありません。最初のスレを立ててみよう！</p>';
     return;
   }
@@ -45,6 +44,7 @@ async function loadThreads() {
 
 // 3. 送信ボタンが押された時の処理
 document.getElementById('thread-form').addEventListener('submit', async function(e) {
+  // ブラウザのデフォルト送信を止めて405エラーを防ぐ
   e.preventDefault();
   console.log("送信ボタンが押されました");
 
@@ -61,7 +61,7 @@ document.getElementById('thread-form').addEventListener('submit', async function
   } else {
     alert("スレッドを作成しました！");
     this.reset();
-    loadThreads(); 
+    loadThreads(); // リストを最新の状態に更新
   }
 });
 
