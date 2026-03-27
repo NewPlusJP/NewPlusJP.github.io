@@ -25,13 +25,14 @@ async function loadThreads() {
     return;
   }
 
+  // ピン留め優先の並び替え
   const sortedThreads = [...threads].sort((a, b) => {
     return (b.is_admin_thread ? 1 : 0) - (a.is_admin_thread ? 1 : 0);
   });
 
   container.innerHTML = sortedThreads.map(thread => {
     const isSpecial = thread.is_admin_thread === true;
-    const cardStyle = isSpecial ? 'border: 2px solid #ff4757; background: var(--card-bg-special, #fff9f9);' : '';
+    const cardStyle = isSpecial ? 'border: 2px solid #ff4757; background: var(--card-bg-special, rgba(255, 71, 87, 0.05));' : '';
     const badge = isSpecial ? '<span style="background:#ff4757; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7em; margin-right:8px; vertical-align:middle;">📌 置標 / 運営</span>' : '';
 
     return `
@@ -56,8 +57,8 @@ async function loadThreads() {
   }).join('');
 }
 
-// --- 2. 管理者ログイン機能 ---
-async function handleAdminLogin() {
+// --- 2. 管理者ログイン機能 (window.をつけてHTMLから呼べるようにする) ---
+window.handleAdminLogin = async function() {
   const nameInput = document.getElementById('admin-user');
   const passInput = document.getElementById('admin-pass');
   if(!nameInput || !passInput) return;
@@ -91,18 +92,18 @@ async function handleAdminLogin() {
   } else {
     alert("認証失敗：名前がadminで始まっていないか、パスワードが違います。");
   }
-}
+};
 
 // --- 3. 削除機能 ---
-async function deleteThread(id) {
+window.deleteThread = async function(id) {
   if (!confirm("このスレッドと全てのレスを完全に削除しますか？")) return;
   await supabaseClient.from('posts').delete().eq('thread_id', id);
   const { error } = await supabaseClient.from('threads').delete().eq('id', id);
   if (error) alert("削除失敗: " + error.message);
   else location.reload();
-}
+};
 
-// --- 4. スレ立て機能 (修正箇所！) ---
+// --- 4. スレ立て機能 ---
 const threadForm = document.getElementById('thread-form');
 if (threadForm) {
   threadForm.addEventListener('submit', async function(e) {
@@ -121,7 +122,6 @@ if (threadForm) {
     if (error) {
       alert("失敗: " + error.message);
     } else if (data && data.length > 0) {
-      // 成功したら新しいスレッドのIDへ飛ばす
       window.location.href = `thread.html?id=${data[0].id}`;
     }
   });
@@ -140,7 +140,7 @@ function checkAdminStatus() {
     const nameEl = document.getElementById('admin-name');
     if (nameEl) nameEl.innerText = localStorage.getItem('admin_name') || "管理者";
 
-    if (optionContainer) {
+    if (optionContainer && !document.getElementById('is-admin-thread')) {
       optionContainer.innerHTML = `
         <div style="margin: 10px 0; padding: 10px; border: 2px dashed #ff4757; border-radius: 10px; background: rgba(255, 71, 87, 0.1);">
           <label style="color: #ff4757; font-weight: bold; cursor: pointer;">
@@ -156,35 +156,32 @@ function updateAuthDisplay() {
   const authStatusDiv = document.getElementById('auth-status');
   const nameInput = document.getElementById('user-name');
 
-  if (userName) {
-    if (authStatusDiv) {
-      authStatusDiv.innerHTML = `
-        <span style="font-weight:bold; color:#2ed573;">● ログイン中: ${userName}さん</span>
-        <button onclick="logout()" style="margin-left:10px; font-size:0.8em; cursor:pointer;">ログアウト</button>
-      `;
-    }
+  if (userName && authStatusDiv) {
+    authStatusDiv.innerHTML = `
+      <span style="font-weight:bold; color:#2ed573;">● ログイン中: ${userName}さん</span>
+      <button onclick="logout()" style="margin-left:10px; font-size:0.8em; cursor:pointer;">ログアウト</button>
+    `;
     if (nameInput) {
       nameInput.value = userName;
       nameInput.readOnly = true; 
       nameInput.style.background = "#eee";
-      nameInput.style.color = "#333";
     }
   }
 }
 
-function logout() {
+window.logout = function() {
   localStorage.clear();
   location.reload();
-}
+};
 
 // --- 6. ダークモード・初期化 ---
-function toggleDarkMode() {
+window.toggleDarkMode = function() {
   const html = document.documentElement;
   const isDark = html.getAttribute('data-theme') === 'dark';
   const newTheme = isDark ? 'light' : 'dark';
-  html.setAttribute('data-theme', newTheme);
-  localStorage.setItem('theme', newTheme);
-}
+  html.setAttribute('data-theme', nextTheme);
+  localStorage.setItem('theme', nextTheme);
+};
 
 document.addEventListener('DOMContentLoaded', () => {
   const savedTheme = localStorage.getItem('theme');
@@ -194,7 +191,6 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAdminStatus();
   updateAuthDisplay();
   
-  // 閲覧中カウンター
   const counterEl = document.getElementById('online-counter');
   if (counterEl) {
     counterEl.innerText = `現在 ${Math.floor(Math.random() * 5) + 1} 人が閲覧中`;

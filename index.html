@@ -5,26 +5,22 @@
   <title>NewPlusJP</title>
   <meta name="description" content="NewPlusJPの掲示板だよ！">
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <header>
-    <header>
-  <h1>NewPlusJP</h1>
-  <div id="online-counter" style="text-align: right; font-size: 0.8em; color: #666; padding-right: 10px;">
-    現在 0 人が閲覧中
-  </div>
-  <div id="auth-status" style="text-align: right; padding: 10px; font-size: 0.9em; border-bottom: 1px solid #ddd;">
-  </div>
-    </header>
+    <h1>NewPlusJP</h1>
+    <div id="online-counter" style="text-align: right; font-size: 0.8em; color: #666; padding-right: 10px;">
+      現在 0 人が閲覧中
+    </div>
+    <div id="auth-status" style="text-align: right; padding: 10px; font-size: 0.9em; border-bottom: 1px solid #ddd;">
+      </div>
   </header>
 
   <div class="aa">
     <h1>広告</h1>
     <div class="aa">
-      <div id="onecolor">
-        <h2>Newとは？</h2>
-      </div>
+      <div id="onecolor"><h2>Newとは？</h2></div>
       <p>Discordで活動している同盟のことです！<br>
       交流をメインとした同盟です！<br>
       <a href="https://Rousoku740.github.io/New">詳しくはこちらから</a></p>
@@ -34,9 +30,9 @@
   <div class="aa">
     <h2>エントランス</h2>
     <a href="rule.html" style="font-size: 1.2em; font-weight: bold;">■ 【重要】利用規約</a><br>
-    <a href="threadlist.html" style="font-size: 1.2em; font-weight: bold;">■ 掲示板に入る（スレッド一覧）</a></br>
-    <a href="signup.html" style="font-size: 1.2em; font-weight: bold;">■ アカウント作成</a></br>
-    <a href="login.html" style="font-size: 1.2em; font-weight: bold;">■ アカウントにログイン</a></br>
+    <a href="threadlist.html" style="font-size: 1.2em; font-weight: bold;">■ 掲示板に入る（スレッド一覧）</a><br>
+    <a href="signup.html" style="font-size: 1.2em; font-weight: bold;">■ アカウント作成</a><br>
+    <a href="login.html" style="font-size: 1.2em; font-weight: bold;">■ アカウントにログイン</a><br><br>
     <button onclick="toggleDarkMode()" id="dark-mode-btn">🌙 モード切替</button>
   </div>
 
@@ -51,100 +47,67 @@
 
     <div id="admin-console" style="display:none;">
       <p>管理者：<strong id="admin-name"></strong> としてログイン中</p>
-      <button onclick="handleAdminLogout()" class="submit-btn" style="background-color: #e74c3c;">ログアウト</button>
+      <button onclick="logout()" class="submit-btn" style="background-color: #e74c3c;">ログアウト</button>
     </div>
   </section>
-  <script>
-  function toggleDarkMode() {
-    const isDark = document.body.style.backgroundColor === 'rgb(26, 26, 26)';
-    if (isDark) {
-      // ライトモードに戻す
-      document.body.style.backgroundColor = '#f0f2f5';
-      document.body.style.color = '#333';
-      localStorage.setItem('theme', 'light');
-    } else {
-      // ダークモードにする
-      document.body.style.backgroundColor = '#1a1a1a';
-      document.body.style.color = '#f0f0f0';
-      localStorage.setItem('theme', 'dark');
-    }
-  }
-
-  // 読み込み時に設定を反映
-  document.addEventListener('DOMContentLoaded', () => {
-    if (localStorage.getItem('theme') === 'dark') {
-      document.body.style.backgroundColor = '#1a1a1a';
-      document.body.style.color = '#f0f0f0';
-    }
-  });
-</script>
-
-<script>
-async function handleAdminLogin() {
-  const nameInput = document.getElementById('admin-user');
-  const passInput = document.getElementById('admin-pass');
-  if(!nameInput || !passInput) return;
-
-  const name = nameInput.value.trim();
-  const pass = passInput.value.trim();
-
-  const { data, error } = await supabaseClient
-    .from('user_accounts')
-    .select('*')
-    .eq('username', name)
-    .eq('password', pass)
-    .maybeSingle();
-
-  if (data && name.startsWith('admin')) {
-    alert("管理者認証成功！");
-    localStorage.setItem('is_admin', 'true');
-    localStorage.setItem('admin_name', name);
-    location.reload();
-  } else {
-    alert("認証失敗");
-  }
-}
-</script>
 
   <section class="aa" id="create-thread">
-    <div id="onecolor">
-      <h2>新規スレッドを作成する</h2>
-    </div>
+    <div id="onecolor"><h2>新規スレッドを作成する</h2></div>
     <p>新しい話題を投稿しましょう。画像などはDiscordへ！</p>
-
     <form id="thread-form">
       <div class="form-group-inner">
         <label for="thread-title">スレッドタイトル</label>
         <input type="text" id="thread-title" placeholder="タイトルを入力してください" required>
       </div>
-
       <div id="admin-thread-option"></div>
-
       <div class="form-group-inner">
         <label for="user-name">名前（省略可）</label>
         <input type="text" id="user-name" placeholder="名無しさん">
       </div>
-
       <div class="form-group-inner">
         <label for="content">本文</label>
         <textarea id="content" rows="8" placeholder="ここに内容を書き込んでください" required></textarea>
       </div>
-
       <button type="submit" class="submit-btn" id="create-btn">スレッドを作成する</button>
     </form>
   </section>
 
   <section class="aa">
-    <div id="onecolor">
-      <h2>スレッド一覧</h2>
-    </div>
+    <div id="onecolor"><h2>スレッド一覧</h2></div>
     <div id="thread-container">
       <p>読み込み中...</p>
     </div>
   </section>
 
-  <script src="config.js"></script>
   <script src="bbs.js"></script>
 
+  <script>
+    // ダークモードのトグル（bbs.jsの外にあるので一応残す）
+    function toggleDarkMode() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      
+      // ボディのスタイルも直接変える（旧仕様への互換性）
+      if (next === 'dark') {
+        document.body.style.backgroundColor = '#1a1a1a';
+        document.body.style.color = '#f0f0f0';
+      } else {
+        document.body.style.backgroundColor = '#f0f2f5';
+        document.body.style.color = '#333';
+      }
+    }
+
+    // 読み込み時にテーマを復元
+    document.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('theme') === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.body.style.backgroundColor = '#1a1a1a';
+        document.body.style.color = '#f0f0f0';
+      }
+    });
+  </script>
 </body>
 </html>
