@@ -2,98 +2,95 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>NewPlusJP</title>
-  <meta name="description" content="NewPlusJPの掲示板だよ！">
-  <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <title>新規登録 - NewPlusJP</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding-top: 50px; }
+    .auth-card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 300px; text-align: center; }
+    input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; }
+    .btn-signup { width: 100%; padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; background: #ff4757; color: white; }
+    .link-text { display: block; margin-top: 15px; font-size: 0.8em; color: #555; text-decoration: none; }
+    .link-text:hover { text-decoration: underline; }
+    .rule-text { font-size: 0.8em; color: #666; margin: 15px 0; line-height: 1.5; }
+    .rule-link { color: #ff4757; text-decoration: none; font-weight: bold; }
+    .rule-link:hover { text-decoration: underline; }
+  </style>
 </head>
 <body>
-  <header>
-    <h1>NewPlusJP</h1>
-    <header>
-  <h1>NewPlusJP</h1>
-  <div id="online-counter" style="text-align: right; font-size: 0.8em; color: #666; padding-right: 10px;">
-    現在 0 人が閲覧中
-  </div>
-  <div id="auth-status" style="text-align: right; padding: 10px; font-size: 0.9em; border-bottom: 1px solid #ddd;">
-  </div>
-    </header>
-  </header>
 
-  <div class="aa">
-    <h1>広告</h1>
-    <div class="aa">
-      <div id="onecolor">
-        <h2>Newとは？</h2>
-      </div>
-      <p>Discordで活動している同盟のことです！<br>
-      交流をメインとした同盟です！<br>
-      <a href="https://Rousoku740.github.io/New">詳しくはこちらから</a></p>
-    </div>
-  </div>
+<div class="auth-card">
+  <h2>アカウント作成</h2>
+  
+  <input type="text" id="username" placeholder="使いたいユーザー名">
+  <input type="password" id="password" placeholder="パスワード">
 
-  <div class="aa">
-    <h2>エントランス</h2>
-    <a href="rule.html" style="font-size: 1.2em; font-weight: bold;">■ 【重要】利用規約</a><br>
-    <a href="threadlist.html" style="font-size: 1.2em; font-weight: bold;">■ 掲示板に入る（スレッド一覧）</a>
-    <a href="signup.html" style="font-size: 1.2em; font-weight: bold;">■ アカウント作成</a>
-    <a href="login.html" style="font-size: 1.2em; font-weight: bold;">■ アカウントにログイン</a>
-  </div>
+  <p class="rule-text">
+    アカウントを作成すると<br>
+    <a href="https://newplusjp.github.io/rule" target="_blank" class="rule-link">利用規約</a>
+    に同意したことになります。
+  </p>
 
-  <section class="aa" id="admin-section">
-    <div id="onecolor"><h2>管理者メニュー</h2></div>
-    
- <div id="admin-auth-inputs">
-      <input type="text" id="admin-user" placeholder="管理者ID" style="width: 150px;">
-      <input type="password" id="admin-pass" placeholder="パスワード" style="width: 150px;">
-      <button onclick="handleAdminLogin()" class="submit-btn" style="padding: 5px 15px;">ログイン</button>
-    </div>
+  <button class="btn-signup" onclick="handleSignUp()">同意して登録する</button>
+  
+  <a href="login.html" class="link-text">すでにアカウントを持っている</a>
+  <a href="index.html" class="link-text">トップに戻る</a>
+</div>
 
-  <div id="admin-console" style="display:none;">
-      <p>管理者：<strong id="admin-name"></strong> としてログイン中</p>
-      <button onclick="handleAdminLogout()" class="submit-btn" style="background-color: #e74c3c;">ログアウト</button>
-    </div>
-  </section>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
-  <section class="aa" id="create-thread">
-    <div id="onecolor">
-      <h2>新規スレッドを作成する</h2>
-    </div>
-    <p>新しい話題を投稿しましょう。画像などはDiscordへ！</p>
+<script>
+  // 設定
+  const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU";
+  
+  // クライアント作成
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-   <form id="thread-form">
-      <div class="form-group-inner">
-        <label for="thread-title">スレッドタイトル</label>
-        <input type="text" id="thread-title" placeholder="タイトルを入力してください" required>
-      </div>
+  async function handleSignUp() {
+    try {
+      const user = document.getElementById('username').value.trim();
+      const pass = document.getElementById('password').value.trim();
 
-  <div id="admin-thread-option"></div>
+      if (!user || !pass) {
+        alert("名前とパスワードを入力してください");
+        return;
+      }
 
-  <div class="form-group-inner">
-        <label for="user-name">名前（省略可）</label>
-        <input type="text" id="user-name" placeholder="名無しさん">
-      </div>
+      console.log("登録チェック開始:", user);
 
-   <div class="form-group-inner">
-        <label for="content">本文</label>
-        <textarea id="content" rows="8" placeholder="ここに内容を書き込んでください" required></textarea>
-      </div>
+      // 1. 重複チェック ('user_accounts' を引用符で囲む)
+      const { data: exist, error: checkError } = await supabase
+        .from('user_accounts')
+        .select('username')
+        .eq('username', user)
+        .maybeSingle();
 
-  <button type="submit" class="submit-btn" id="create-btn">スレッドを作成する</button>
-    </form>
-  </section>
+      if (checkError) {
+        console.error("チェックエラー:", checkError);
+      }
 
-  <section class="aa">
-    <div id="onecolor">
-      <h2>スレッド一覧</h2>
-    </div>
-    <div id="thread-container">
-      <p>読み込み中...</p>
-    </div>
-  </section>
+      if (exist) {
+        alert("その名前はすでに使われています");
+        return;
+      }
 
-  <script src="config.js"></script>
-  <script src="bbs.js"></script>
+      // 2. 登録実行
+      const { error: insError } = await supabase
+        .from('user_accounts')
+        .insert([{ username: user, password: pass }]);
+
+      if (insError) {
+        alert("登録エラー: " + insError.message);
+      } else {
+        alert("登録完了！ログイン画面へ移動します");
+        window.location.href = "login.html";
+      }
+
+    } catch (e) {
+      console.error("システムエラー:", e);
+      alert("予期せぬエラーが発生しました");
+    }
+  }
+</script>
 
 </body>
 </html>

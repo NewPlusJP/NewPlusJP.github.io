@@ -43,7 +43,7 @@
     try {
       // ユーザー名とパスワードが一致する行を探す
       const { data, error } = await supabase
-        .from('user_accounts')
+        .from(user_accounts)
         .select('*')
         .eq('username', user)
         .eq('password', pass)
