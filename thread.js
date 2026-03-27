@@ -69,36 +69,55 @@ async function loadSingleThread() {
   await loadPostsInThread(); 
 }
 
-// 3. レス表示（全員が全て見れる）
+// 3. レス表示
 async function loadPostsInThread() {
   const postList = document.getElementById('res-list');
   if (!postList || !currentThreadData) return;
 
-  const { data: posts } = await supabaseClient
+  const isAdmin = localStorage.getItem('is_admin') === 'true';
+
+  // ★ select('*') で is_admin_only も確実に取得する
+  const { data: posts, error } = await supabaseClient
     .from('posts')
-    .select('*')
+    .select('*') 
     .eq('thread_id', threadId)
     .order('id', { ascending: false })
     .limit(20);
 
-  const displayArray = [...(posts || []), {
+  if (error) {
+    console.error("データ取得エラー:", error);
+    return;
+  }
+
+  const displayArray = [...(posts || [])];
+  
+  // スレ主データ（これは管理者限定ではないので false 固定）
+  displayArray.push({
+    id: "first",
     name: currentThreadData.name,
     content: currentThreadData.content,
-    created_at: currentThreadData.created_at,
+    created_at: currentThreadat,
     user_id_display: "OWNER",
-    is_owner: true
-  }];
+    is_owner: true,
+    is_admin_only: false 
+  });
 
   postList.innerHTML = displayArray.map((post) => {
-    const isAdminPost = (post.user_id_display === "ADMIN");
-    // 管理者モードの投稿なら特別なスタイルを適用
-    const specialStyle = post.is_admin_only ? 'background:#fff9e6; border-left:5px solid #ff4757; padding-left:15px;' : '';
-    const adminLabel = post.is_admin_only ? '<span style="color:#ff4757; font-weight:bold;">【管理者のみ発言可】</span>' : '';
+    const isOwner = post.is_owner;
+    const postIsAdmin = (post.user_id_display === "ADMIN");
+    const adminBadge = postIsAdmin ? '<span style="background:#ff4757; color:white; padding:2px 8px; border-radius:10px; font-size:0.75em; margin-left:5px; vertical-align:middle;">管理者</span>' : '';
+    
+    // ★ 再読み込みしても消えないように、保存された post.is_admin_only を使う
+    const isSecretMode = post.is_admin_only === true;
+    const adminLabel = isSecretMode ? '<span style="color:#ff4757; font-weight:bold;">【管理者のみ発言可】</span>' : '';
+    const specialStyle = isSecretMode ? 'background:#fff9e6; border-left:5px solid #ff4757; padding-left:15px;' : '';
 
+    const nameColor = isOwner ? "#ff0000" : "green";
+    
     return `
       <div style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding: 10px; ${specialStyle}">
-        <span style="color:${post.is_owner ? '#ff0000' : 'green'}; font-weight:bold;">${post.name}${isAdminPost ? ' [管理者]' : ''}</span> 
-        <small>：${new Date(post.created_at).toLocaleString()} ID:${post.user_id_display}</small>
+        <span style="color:${nameColor}; font-weight:bold;">${post.name}${adminBadge}</span> 
+        <small>：${new Date(post.created_at).toLocaleString()} ID:${post.user_id_display || "???"}</small>
         <div style="margin-top:8px; white-space:pre-wrap;">${adminLabel}${post.content}</div>
       </div>
     `;
