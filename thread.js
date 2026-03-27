@@ -1,18 +1,90 @@
-// ...（初期化やID生成はそのまま）
+// 1. 初期化
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const urlParams = new URLSearchParams(window.location.search);
+const threadId = urlParams.get('id');
 
-// 3. レス一覧表示（★ここで強制的に20件にカットする）
+// メモリ上にスレッド情報を保持
+let currentThreadData = null;
+
+// ID生成
+function generateID() {
+  const date = new Date().toISOString().slice(0, 10);
+  let userSecret = localStorage.getItem('user_uuid_seed');
+  if (!userSecret) {
+    userSecret = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    localStorage.setItem('user_uuid_seed', userSecret);
+  }
+  const seed = date + userSecret;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36).substring(0, 8).toUpperCase();
+}
+
+// 2. スレッド読み込み
+async function loadSingleThread() {
+  const container = document.getElementById('single-thread-container');
+  if (!threadId) return;
+
+  const { data: thread, error } = await supabaseClient
+    .from('threads')
+    .select('id, title, name, content, created_at')
+    .eq('id', threadId)
+    .maybeSingle();
+
+  if (error || !thread) {
+    container.innerHTML = '<div class="aa">スレッドが見つかりません</div>';
+    return;
+  }
+
+  // グローバル変数に保存
+  currentThreadData = thread;
+  const savedName = localStorage.getItem('user_display_name') || "";
+
+  // HTMLを流し込む
+  container.innerHTML = `
+    <div class="aa">
+      <h2 style="color: #ff0000; margin-bottom: 5px;">${thread.title}</h2>
+      
+      <div style="background: #f0f0f0; padding: 20px; border-radius: 20px; border: 1px solid #ccc; margin-bottom: 20px;">
+        <h3 style="margin-top:0;">レスを書き込む</h3>
+        <form id="reply-form">
+          <input type="text" id="res-name" placeholder="名前" value="${savedName}" style="width: 200px; padding: 8px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 5px;"><br>
+          <textarea id="res-content" placeholder="内容を入力" required style="width: 95%; height: 80px; padding: 10px; border-radius: 10px; border: 1px solid #ddd;"></textarea><br>
+          <button type="submit" id="submit-btn" class="submit-btn" style="padding: 8px 25px; margin-top:10px;">書き込む</button>
+        </form>
+      </div>
+
+      <div id="res-list">読み込み中...</div>
+      
+      <div style="margin-top:20px;"><a href="index.html">■掲示板トップに戻る</a></div>
+    </div>
+  `;
+
+  // イベントリスナーをここで登録
+  document.getElementById('reply-form').addEventListener('submit', postReplyInThread);
+  
+  // 初回表示
+  await loadPostsInThread(); 
+}
+
+// 3. レス表示
 async function loadPostsInThread() {
   const postList = document.getElementById('res-list');
-  
+  if (!postList) return;
+
   const { data: posts } = await supabaseClient
     .from('posts')
     .select('id, name, content, created_at, user_id_display')
     .eq('thread_id', threadId)
     .order('id', { ascending: false })
-    .limit(20); // サーバーから取る時点で最大20件
+    .limit(20);
 
   const displayArray = [...(posts || [])];
   
+  // スレ主データを追加
   if (currentThreadData) {
     displayArray.push({
       id: "first",
@@ -24,10 +96,7 @@ async function loadPostsInThread() {
     });
   }
 
-  // 念のためフロント側でも20件＋スレ主の計21件以上にならないようガード
-  const finalDisplay = displayArray.slice(0, 21);
-
-  postList.innerHTML = finalDisplay.map((post) => {
+  postList.innerHTML = displayArray.map((post) => {
     const isAdmin = (post.user_id_display === "ADMIN");
     const adminBadge = isAdmin ? '<span style="background:#ff4757; color:white; padding:2px 8px; border-radius:10px; font-size:0.75em; margin-left:5px; vertical-align:middle;">管理者</span>' : '';
     const nameColor = post.is_owner ? "#ff0000" : "green";
@@ -42,41 +111,44 @@ async function loadPostsInThread() {
   }).join('');
 }
 
-// 4. 投稿（★投稿完了を待ってからリストを更新する）
+// 4. 投稿処理（リロードなし）
 async function postReplyInThread(event) {
   event.preventDefault();
+  
+  const nameInput = document.getElementById('res-name');
   const contentInput = document.getElementById('res-content');
   const submitBtn = document.getElementById('submit-btn');
-  const nameToSave = document.getElementById('res-name').value || "名無しさん";
+  
+  const nameToSave = nameInput.value || "名無しさん";
+  const contentValue = contentInput.value;
+  if (!contentValue.trim()) return;
 
-  if (!contentInput.value.trim()) return;
+  localStorage.setItem('user_display_name', nameToSave);
+  const myID = (localStorage.getItem('is_admin') === 'true') ? "ADMIN" : generateID();
 
   submitBtn.disabled = true;
   submitBtn.innerText = "送信中...";
 
-  // 1. まずサーバーに保存（awaitで完了を待つ）
   const { error } = await supabaseClient.from('posts').insert([{
     thread_id: threadId,
     name: nameToSave,
-    content: contentInput.value,
-    user_id_display: (localStorage.getItem('is_admin') === 'true') ? "ADMIN" : generateID()
+    content: contentValue,
+    user_id_display: myID
   }]);
 
   if (!error) {
     contentInput.value = "";
-    // 2. 保存が終わってからお掃除を実行（これも待つ）
-    await cleanOldPosts();
-    // 3. 最後にリストを再読み込み（これで確実に最新20件になる）
-    await loadPostsInThread();
+    await cleanOldPosts();    // お掃除
+    await loadPostsInThread(); // 再表示
   } else {
-    alert("エラーだわこれ: " + error.message);
+    alert("エラー: " + error.message);
   }
 
   submitBtn.disabled = false;
   submitBtn.innerText = "書き込む";
 }
 
-// お掃除（★これがないとDBがパンクする）
+// お掃除
 async function cleanOldPosts() {
   const { data } = await supabaseClient
     .from('posts')
@@ -89,3 +161,6 @@ async function cleanOldPosts() {
     await supabaseClient.from('posts').delete().in('id', idsToDelete);
   }
 }
+
+// 実行！
+document.addEventListener('DOMContentLoaded', loadSingleThread);
