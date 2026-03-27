@@ -4,42 +4,128 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>スレッド一覧 - NewPlusJP</title>
-    <link rel="stylesheet" href="style.css">
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f5f5f5; }
+        
+        /* 君が使ってる大事な枠組み */
+        .aa { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 20px; 
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .nav-links { margin-bottom: 20px; }
+        .nav-links a { margin-right: 15px; color: #007bff; text-decoration: none; }
+
+        /* スレ立てエリア */
+        .post-form { 
+            border: 1px solid #ccc; 
+            padding: 15px; 
+            margin-bottom: 30px; 
+            background: #fafafa;
+        }
+        .post-form input, .post-form textarea { 
+            width: 100%; 
+            margin-bottom: 10px; 
+            padding: 8px; 
+            box-sizing: border-box; 
+        }
+        .submit-btn { padding: 10px 20px; cursor: pointer; }
+
+        /* スレッド一覧の見た目 */
+        .thread-row { 
+            padding: 15px 0; 
+            border-bottom: 1px solid #eee; 
+        }
+        .thread-link { 
+            font-size: 1.2em; 
+            font-weight: bold; 
+            color: #333; 
+            text-decoration: none; 
+        }
+        .thread-link:hover { color: #007bff; }
+        .thread-meta { font-size: 0.8em; color: #888; margin-top: 5px; }
+    </style>
 </head>
 <body>
 
 <div class="aa">
     <h1>スレッド一覧</h1>
-    <div style="margin-bottom: 20px;">
-        <a href="index.html">トップページ</a> ｜ <a href="rule.html">利用規約</a>
+    
+    <div class="nav-links">
+        <a href="index.html">トップページ</a>
+        <a href="rules.html">利用規約</a>
     </div>
 
-    <div class="form-group">
+    <div class="post-form">
         <h3>新しくスレッドを立てる</h3>
-        <form id="thread-form">
-            <div class="form-group-inner">
-                <label>スレッドタイトル</label>
-                <input type="text" id="thread-title" placeholder="タイトルを入力" required>
-            </div>
-            <div class="form-group-inner">
-                <label>名前（省略可）</label>
-                <input type="text" id="user-name" placeholder="名無しさん">
-            </div>
-            <div class="form-group-inner">
-                <label>本文</label>
-                <textarea id="content" rows="5" placeholder="内容を入力" required></textarea>
-            </div>
-            <button type="submit" class="submit-btn">スレッドを作成する</button>
+        <form id="create-thread-form">
+            <input type="text" id="t-title" placeholder="スレッドのタイトル" required>
+            <input type="text" id="t-name" placeholder="名前（省略可）">
+            <textarea id="t-content" placeholder="最初のカキコミ内容" required rows="4"></textarea>
+            <button type="submit" id="submit-btn" class="submit-btn">スレッド作成</button>
         </form>
     </div>
 
-    <div id="thread-container">
+    <div id="thread-list">
         読み込み中...
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
-<script src="bbs.js"></script>
+
+<script>
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    async function loadThreads() {
+        const listContainer = document.getElementById('thread-list');
+        const { data: threads, error } = await supabaseClient
+            .from('threads')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            listContainer.innerHTML = "読み込みエラー";
+            return;
+        }
+
+        listContainer.innerHTML = threads.map(t => `
+            <div class="thread-row">
+                <a href="thread.html?id=${t.id}" class="thread-link">${t.title}</a>
+                <div class="thread-meta">
+                    名前: ${t.name} | 投稿日: ${new Date(t.created_at).toLocaleString()}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    document.getElementById('create-thread-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('submit-btn');
+        btn.disabled = true;
+
+        const title = document.getElementById('t-title').value;
+        const name = document.getElementById('t-name').value || "名無しさん";
+        const content = document.getElementById('t-content').value;
+
+        const { data: newThread, error } = await supabaseClient
+            .from('threads')
+            .insert([{ title, name, content }])
+            .select().single();
+
+        if (error) {
+            alert("作成失敗");
+            btn.disabled = false;
+        } else {
+            window.location.href = `thread.html?id=${newThread.id}`;
+        }
+    });
+
+    loadThreads();
+</script>
 </body>
 </html>
