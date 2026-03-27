@@ -1,5 +1,4 @@
-// --- 1. 初期化 (config.jsの変数を利用) ---
-// config.js が先に読み込まれている前提です
+// --- 1. 初期化 ---
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- 2. スレッド一覧を表示 ---
@@ -24,91 +23,45 @@ async function loadThreads() {
     return;
   }
 
+  // 返信リストと返信フォームを削除し、タイトルと最初の本文だけに集約
   container.innerHTML = threads.map(thread => `
     <div class="aa" id="thread-card-${thread.id}">
       <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h3 style="color: #ff0000; margin: 0;">${thread.title}</h3>
+        <h3 style="margin: 0;">
+          <a href="thread.html?id=${thread.id}" style="color: #ff0000; text-decoration: none;">
+            ${thread.title}
+          </a>
+        </h3>
         ${isAdmin ? `<button onclick="deleteThread(${thread.id})" style="color:red; cursor:pointer; background:none; border:1px solid red; border-radius:4px; padding:2px 5px;">スレごと削除 🗑️</button>` : ''}
       </div>
       <div class="res-meta">
-        1 ：<span class="res-name" style="color: green; font-weight: bold;">${thread.name}</span>：${new Date(thread.created_at).toLocaleString()}
+        1 ：<span style="color: green; font-weight: bold;">${thread.name}</span>：${new Date(thread.created_at).toLocaleString()}
       </div>
-      <div class="res-content" style="margin: 10px 0; white-space: pre-wrap;">${thread.content}</div>
+      <div class="res-content" style="margin: 10px 0; white-space: pre-wrap; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
+        ${thread.content}
+      </div>
       
-      <hr style="border: 0; border-top: 1px dashed #ccc;">
-      <div id="res-list-${thread.id}" style="margin-bottom:15px; padding-left: 10px;"><small>読み込み中...</small></div>
-
-      <form onsubmit="postReply(event, ${thread.id})">
-        <input type="text" id="res-name-${thread.id}" placeholder="名前" style="width: 20%;">
-        <input type="text" id="res-content-${thread.id}" placeholder="本文" required style="width: 50%;">
-        <button type="submit" class="submit-btn">書き込む</button>
-      </form>
-    </div>
-  `).join('');
-
-  threads.forEach(thread => loadPosts(thread.id));
-}
-
-// --- 3. レスを表示 ---
-async function loadPosts(threadId) {
-  const postContainer = document.getElementById(`res-list-${threadId}`);
-  if (!postContainer) return;
-
-  const { data: posts, error } = await supabaseClient
-    .from('posts')
-    .select('*')
-    .eq('thread_id', threadId)
-    .order('created_at', { ascending: true });
-
-  if (error || !posts || posts.length === 0) {
-    postContainer.innerHTML = '<small style="color:gray;">レスはありません</small>';
-    return;
-  }
-
-  const isAdmin = localStorage.getItem('is_admin') === 'true';
-
-  postContainer.innerHTML = posts.map((post, index) => `
-    <div style="margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
-      <div class="res-meta" style="display: flex; justify-content: space-between;">
-        <span>${index + 2} ：<span class="res-name" style="color: green; font-weight: bold;">${post.name}</span>：${new Date(post.created_at).toLocaleString()}</span>
-        ${isAdmin ? `<button onclick="deletePost(${post.id}, ${threadId})" style="color:red; font-size: 0.8em; cursor:pointer; background:none; border:none;">[削除]</button>` : ''}
+      <div style="margin-top: 10px;">
+        <a href="thread.html?id=${thread.id}" style="font-size: 0.9em; color: #555;">>> このスレッドを開く</a>
       </div>
-      <div class="res-content" style="margin: 5px 0 0 15px; white-space: pre-wrap;">${post.content}</div>
     </div>
   `).join('');
 }
 
-// --- 4. 削除機能 ---
+// --- 3. 削除機能 ---
 async function deleteThread(id) {
-  if (!confirm("スレッドを削除しますか？")) return;
+  if (!confirm("このスレッドを内のレスごと完全に削除しますか？")) return;
+  
+  // 関連するレスを削除
   await supabaseClient.from('posts').delete().eq('thread_id', id);
+  // スレッド自体を削除
   const { error } = await supabaseClient.from('threads').delete().eq('id', id);
-  if (error) alert(error.message);
+  
+  if (error) alert("削除失敗: " + error.message);
   else loadThreads();
 }
 
-async function deletePost(postId, threadId) {
-  if (!confirm("レスを削除しますか？")) return;
-  const { error } = await supabaseClient.from('posts').delete().eq('id', postId);
-  if (error) alert(error.message);
-  else loadPosts(threadId);
-}
-
-// --- 5. 投稿機能 ---
-async function postReply(event, threadId) {
-  event.preventDefault(); 
-  const nameInput = document.getElementById(`res-name-${threadId}`);
-  const contentInput = document.getElementById(`res-content-${threadId}`);
-  const { error } = await supabaseClient.from('posts').insert([{ 
-    thread_id: threadId, 
-    name: nameInput.value || "名無しさん", 
-    content: contentInput.value 
-  }]);
-  if (error) alert(error.message);
-  else { contentInput.value = ""; loadPosts(threadId); }
-}
-
-// --- 6. スレ立て機能 ---
+// --- 4. スレ立て機能 ---
 const threadForm = document.getElementById('thread-form');
 if (threadForm) {
   threadForm.addEventListener('submit', async function(e) {
@@ -116,24 +69,30 @@ if (threadForm) {
     const title = document.getElementById('thread-title').value;
     const name = document.getElementById('user-name').value || "名無しさん";
     const content = document.getElementById('content').value;
+    
     const { error } = await supabaseClient.from('threads').insert([{ title, name, content }]);
+    
     if (error) alert(error.message);
-    else { alert("作成成功"); this.reset(); loadThreads(); }
+    else {
+      alert("スレッドを作成しました！");
+      this.reset();
+      loadThreads();
+    }
   });
 }
 
-// --- 7. 管理者認証 ---
+// --- 5. 管理者認証 (ログイン・ログアウト・状態確認) ---
 async function handleAdminLogin() {
   const user = document.getElementById('admin-user').value;
   const pass = document.getElementById('admin-pass').value;
-  const { data, error } = await supabaseClient.from('admin_users').select('*').eq('username', user).eq('password_hash', pass).single();
+  const { data } = await supabaseClient.from('admin_users').select('*').eq('username', user).eq('password_hash', pass).single();
   
   if (data) {
     localStorage.setItem('is_admin', 'true');
     localStorage.setItem('admin_name', data.username);
     location.reload(); 
   } else {
-    alert("ログイン失敗。IDまたはパスワードが違います。");
+    alert("ログイン失敗");
   }
 }
 
@@ -149,13 +108,13 @@ function checkAdminStatus() {
   const adminInputs = document.getElementById('admin-auth-inputs');
   if (isAdmin && adminConsole) {
     adminConsole.style.display = 'block';
-    adminInputs.style.display = 'none';
+    if (adminInputs) adminInputs.style.display = 'none';
     const nameDisp = document.getElementById('admin-name');
     if (nameDisp) nameDisp.innerText = localStorage.getItem('admin_name');
   }
 }
 
-// --- 8. 実行 ---
+// --- 6. 実行 ---
 document.addEventListener('DOMContentLoaded', () => {
   loadThreads();
   checkAdminStatus();
