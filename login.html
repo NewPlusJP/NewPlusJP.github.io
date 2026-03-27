@@ -8,7 +8,8 @@
     .auth-card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 300px; text-align: center; }
     input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; }
     .btn-login { width: 100%; padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; background: #2ed573; color: white; }
-    .link-text { display: block; margin-top: 15px; font-size: 0.8em; color: #555; }
+    .link-text { display: block; margin-top: 15px; font-size: 0.8em; color: #555; text-decoration: none; }
+    .link-text:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -17,23 +18,23 @@
   <h2>ログイン</h2>
   <input type="text" id="username" placeholder="ユーザー名">
   <input type="password" id="password" placeholder="パスワード">
-  <button class="btn-login" onclick="handleLogin()">ログインする</button>
+  <button class="btn-login" id="login-btn">ログインする</button>
   
   <a href="signup.html" class="link-text">新しくアカウントを作る</a>
   <a href="index.html" class="link-text">トップに戻る</a>
 </div>
 
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
 <script>
-  // 正しいキーに差し替え済み
   const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU";
   
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   async function handleLogin() {
-    const user = document.getElementById('username').value;
-    const pass = document.getElementById('password').value;
+    const user = document.getElementById('username').value.trim();
+    const pass = document.getElementById('password').value.trim();
 
     if (!user || !pass) {
       alert("ユーザー名とパスワードを入力してね！");
@@ -41,9 +42,9 @@
     }
 
     try {
-      // ユーザー名とパスワードが一致する行を探す
+      // 1. ユーザー名とパスワードが一致する行を探す (テーブル名を引用符で囲む！)
       const { data, error } = await supabase
-        .from(user_accounts)
+        .from('user_accounts')
         .select('*')
         .eq('username', user)
         .eq('password', pass)
@@ -56,9 +57,19 @@
 
       if (data) {
         alert("おかえりなさい、" + user + "さん！");
-        // ブラウザにログイン情報を保存
+        
+        // 2. ログイン情報を保存
         localStorage.setItem('user_display_name', user); 
-        // 掲示板のトップへ移動
+
+        // 3. ★管理者フラグの判定 (名前がadminで始まれば管理者)
+        if (user.startsWith('admin')) {
+          localStorage.setItem('is_admin', 'true');
+          localStorage.setItem('admin_name', user);
+        } else {
+          localStorage.setItem('is_admin', 'false');
+        }
+
+        // 4. 掲示板のトップへ移動
         window.location.href = "index.html";
       } else {
         alert("ユーザー名かパスワードが間違っているよ。");
@@ -68,6 +79,9 @@
       alert("ログイン中に問題が起きました。");
     }
   }
+
+  // ボタンにイベントを割り当てる
+  document.getElementById('login-btn').addEventListener('click', handleLogin);
 </script>
 </body>
 </html>
