@@ -29,7 +29,7 @@
     に同意したことになります。
   </p>
 
-  <button class="btn-signup" onclick="handleSignUp()">同意して登録する</button>
+  <button class="btn-signup" id="signup-btn">同意して登録する</button>
   
   <a href="login.html" class="link-text">すでにアカウントを持っている</a>
   <a href="index.html" class="link-text">トップに戻る</a>
@@ -38,17 +38,20 @@
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
 <script>
-  // 設定
+  // 1. 設定（二重宣言エラーを防ぐため、ここだけにまとめる）
   const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU";
   
-  // クライアント作成
+  // 2. クライアント作成
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+  // 3. 登録処理を関数として定義
   async function handleSignUp() {
     try {
-      const user = document.getElementById('username').value.trim();
-      const pass = document.getElementById('password').value.trim();
+      const userEl = document.getElementById('username');
+      const passEl = document.getElementById('password');
+      const user = userEl.value.trim();
+      const pass = passEl.value.trim();
 
       if (!user || !pass) {
         alert("名前とパスワードを入力してください");
@@ -57,7 +60,7 @@
 
       console.log("登録チェック開始:", user);
 
-      // 1. 重複チェック ('user_accounts' を引用符で囲む)
+      // 重複チェック
       const { data: exist, error: checkError } = await supabase
         .from('user_accounts')
         .select('username')
@@ -73,7 +76,7 @@
         return;
       }
 
-      // 2. 登録実行
+      // 登録実行
       const { error: insError } = await supabase
         .from('user_accounts')
         .insert([{ username: user, password: pass }]);
@@ -90,6 +93,9 @@
       alert("予期せぬエラーが発生しました");
     }
   }
+
+  // 4. ボタンにイベントを割り当てる（HTMLのonclickより確実）
+  document.getElementById('signup-btn').addEventListener('click', handleSignUp);
 </script>
 
 </body>
