@@ -3,7 +3,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 const urlParams = new URLSearchParams(window.location.search);
 const threadId = urlParams.get('id');
 
-// ID生成（1日固定）
+// ID生成
 function generateID() {
   const date = new Date().toISOString().slice(0, 10);
   let userSecret = localStorage.getItem('user_uuid_seed');
@@ -38,6 +38,7 @@ async function loadSingleThread() {
 
   const savedName = localStorage.getItem('user_display_name') || "";
 
+  // HTML生成（onsubmitを消してJS側で制御する）
   container.innerHTML = `
     <div class="aa">
       <h2 style="color: #ff0000; margin-bottom: 5px;">${thread.title}</h2>
@@ -47,7 +48,7 @@ async function loadSingleThread() {
         <form id="reply-form">
           <input type="text" id="res-name" placeholder="名前" value="${savedName}" style="width: 200px; padding: 8px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 5px;"><br>
           <textarea id="res-content" placeholder="内容を入力" required style="width: 95%; height: 80px; padding: 10px; border-radius: 10px; border: 1px solid #ddd;"></textarea><br>
-          <button type="submit" class="submit-btn" style="padding: 8px 25px; margin-top:10px;">書き込む</button>
+          <button type="submit" id="submit-btn" class="submit-btn" style="padding: 8px 25px; margin-top:10px;">書き込む</button>
         </form>
       </div>
 
@@ -57,8 +58,12 @@ async function loadSingleThread() {
     </div>
   `;
 
-  // フォームのイベントリスナーを設定
-  document.getElementById('reply-form').addEventListener('submit', (e) => postReplyInThread(e, thread));
+  // ★ここでイベントをフックして、リロードを絶対に止める
+  const form = document.getElementById('reply-form');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault(); // これがリロードを止める魔法の言葉
+    await postReplyInThread(thread); 
+  });
   
   loadPostsInThread(thread); 
 }
@@ -66,7 +71,6 @@ async function loadSingleThread() {
 // 3. レス表示
 async function loadPostsInThread(threadData) {
   const postList = document.getElementById('res-list');
-  
   const { data: posts } = await supabaseClient
     .from('posts')
     .select('id, name, content, created_at, user_id_display')
@@ -99,13 +103,11 @@ async function loadPostsInThread(threadData) {
   }).join('');
 }
 
-// 4. 投稿（リロードなし）
-async function postReplyInThread(event, threadData) {
-  event.preventDefault();
-  
+// 4. 投稿処理（リロードなし）
+async function postReplyInThread(threadData) {
   const nameInput = document.getElementById('res-name');
   const contentInput = document.getElementById('res-content');
-  const submitBtn = event.target.querySelector('.submit-btn');
+  const submitBtn = document.getElementById('submit-btn');
   
   const nameToSave = nameInput.value || "名無しさん";
   const contentValue = contentInput.value;
@@ -116,6 +118,7 @@ async function postReplyInThread(event, threadData) {
   const isAdminLoggedIn = localStorage.getItem('is_admin') === 'true';
   const myID = isAdminLoggedIn ? "ADMIN" : generateID();
 
+  // ボタン無効化
   submitBtn.disabled = true;
   submitBtn.innerText = "送信中...";
 
@@ -130,9 +133,9 @@ async function postReplyInThread(event, threadData) {
     alert("エラー: " + error.message);
   } else {
     contentInput.value = "";
-    // 表示を更新
+    // リロードせずに再表示！
     await loadPostsInThread(threadData);
-    // バックグラウンドでお掃除
+    // お掃除
     cleanOldPosts();
   }
 
@@ -140,7 +143,7 @@ async function postReplyInThread(event, threadData) {
   submitBtn.innerText = "書き込む";
 }
 
-// お掃除ロジックの分離
+// お掃除
 async function cleanOldPosts() {
   const { data: allPosts } = await supabaseClient
     .from('posts')
