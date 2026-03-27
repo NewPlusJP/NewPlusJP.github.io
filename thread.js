@@ -58,7 +58,7 @@ async function loadSingleThread() {
     </div>
   `;
 
-  loadPostsInThread(thread.name); // スレ主の名前を渡す
+  loadPostsInThread(thread.name); 
 }
 
 // 3. レス一覧を表示
@@ -79,20 +79,15 @@ async function loadPostsInThread(originalPosterName) {
 
   postList.innerHTML = posts.map((post, index) => {
     const displayID = post.user_id_display || "???";
-    
-    // 色の判定ロジック
-    let nameStyle = "color: green; font-weight: bold;"; // デフォルトは緑
+    let nameStyle = "color: green; font-weight: bold;"; 
     let adminMark = "";
 
-    // 1. 管理者かどうかの判定 (投稿時に管理者フラグを持たせると正確ですが、簡易的にログイン中なら)
-    // ※本来はDBにis_admin列を作って判定するのが確実ですが、今回は「ログイン中の書き込み」を想定
     if (post.is_admin_post) {
-      nameStyle = "color: #ffaa00; font-weight: bold;"; // 黄色（オレンジ寄りで見やすく）
+      nameStyle = "color: #ffaa00; font-weight: bold;"; 
       adminMark = " <small>(★管理者)</small>";
     } 
-    // 2. スレ主かどうかの判定 (名前が一致したら)
     else if (post.name === originalPosterName) {
-      nameStyle = "color: #ff0000; font-weight: bold;"; // 赤色
+      nameStyle = "color: #ff0000; font-weight: bold;"; 
     }
 
     return `
@@ -110,30 +105,49 @@ async function loadPostsInThread(originalPosterName) {
   }).join('');
 }
 
-// 4. レス投稿処理
+// 4. レス投稿処理 ＋ 自動お掃除機能
 async function postReplyInThread(event) {
   event.preventDefault();
   const nameInput = document.getElementById('res-name');
   const contentInput = document.getElementById('res-content');
   const myID = generateID();
-  
-  // 今ログインしている人が管理者かどうか
   const isAdmin = localStorage.getItem('is_admin') === 'true';
 
-  const { error } = await supabaseClient.from('posts').insert([{
+  // 1. レスを投稿
+  const { error: postError } = await supabaseClient.from('posts').insert([{
     thread_id: threadId,
     name: nameInput.value || "名無しさん",
     content: contentInput.value,
     user_id_display: myID,
-    is_admin_post: isAdmin // 管理者として書いたかどうかのフラグ
+    is_admin_post: isAdmin
   }]);
 
-  if (error) {
-    alert("エラー: " + error.message);
-  } else {
-    contentInput.value = "";
-    location.reload(); // 色判定を確実にするためリロード
+  if (postError) {
+    alert("エラー: " + postError.message);
+    return;
   }
+
+  // 2. 自動お掃除（最新50件だけ残す）
+  const MAX_RES = 50; 
+  const { data: currentPosts } = await supabaseClient
+    .from('posts')
+    .select('id')
+    .eq('thread_id', threadId)
+    .order('id', { ascending: true }); // 古い順に取得
+
+  if (currentPosts && currentPosts.length > MAX_RES) {
+    const deleteCount = currentPosts.length - MAX_RES;
+    const idsToDelete = currentPosts.slice(0, deleteCount).map(p => p.id);
+
+    await supabaseClient
+      .from('posts')
+      .delete()
+      .in('id', idsToDelete);
+  }
+
+  // 3. 画面リセット
+  contentInput.value = "";
+  location.reload(); 
 }
 
 async function deletePostInThread(postId) {
