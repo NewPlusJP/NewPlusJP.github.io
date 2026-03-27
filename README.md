@@ -1,130 +1,88 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>スレッド一覧 - NewPlusJP</title>
-    <style>
-        body { font-family: sans-serif; margin: 20px; background-color: #f5f5f5; }
-        
-        /* 君が使ってる大事な枠組み */
-        .aa { 
-            max-width: 800px; 
-            margin: 0 auto; 
-            background: white; 
-            padding: 20px; 
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-
-        .nav-links { margin-bottom: 20px; }
-        .nav-links a { margin-right: 15px; color: #007bff; text-decoration: none; }
-
-        /* スレ立てエリア */
-        .post-form { 
-            border: 1px solid #ccc; 
-            padding: 15px; 
-            margin-bottom: 30px; 
-            background: #fafafa;
-        }
-        .post-form input, .post-form textarea { 
-            width: 100%; 
-            margin-bottom: 10px; 
-            padding: 8px; 
-            box-sizing: border-box; 
-        }
-        .submit-btn { padding: 10px 20px; cursor: pointer; }
-
-        /* スレッド一覧の見た目 */
-        .thread-row { 
-            padding: 15px 0; 
-            border-bottom: 1px solid #eee; 
-        }
-        .thread-link { 
-            font-size: 1.2em; 
-            font-weight: bold; 
-            color: #333; 
-            text-decoration: none; 
-        }
-        .thread-link:hover { color: #007bff; }
-        .thread-meta { font-size: 0.8em; color: #888; margin-top: 5px; }
-    </style>
+  <meta charset="UTF-8">
+  <title>NewPlusJP</title>
+  <meta name="description" content="NewPlusJPの掲示板だよ！">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+  <header>
+    <h1>NewPlusJP</h1>
+  </header>
+
+  <div class="aa">
+    <h1>広告</h1>
+    <div class="aa">
+      <div id="onecolor">
+        <h2>Newとは？</h2>
+      </div>
+      <p>Discordで活動している同盟のことです！<br>
+      交流をメインとした同盟です！<br>
+      <a href="https://Rousoku740.github.io/New">詳しくはこちらから</a></p>
+    </div>
+
+  </div>
 
 <div class="aa">
-    <h1>スレッド一覧</h1>
-    <div class="nav-links">
-        <a href="index.html">トップページ</a>
-        <a href="rules.html">利用規約</a>
-   </div>
-
- <div class="post-form">
-        <h3>新しくスレッドを立てる</h3>
-        <form id="create-thread-form">
-            <input type="text" id="t-title" placeholder="スレッドのタイトル" required>
-            <input type="text" id="t-name" placeholder="名前（省略可）">
-            <textarea id="t-content" placeholder="最初のカキコミ内容" required rows="4"></textarea>
-            <button type="submit" id="submit-btn" class="submit-btn">スレッド作成</button>
-        </form>
-   </div>
-
-   <div id="thread-list">
-        読み込み中...
-    </div>
+  <h2>利用規約&スレッド一覧</h2>
+  <a href="rule.html" style="font-size: 1.2em; font-weight: bold;">■ 【重要】利用規約</a></br>
+  <a href="threadlist.html" style="font-size: 1.2em; font-weight: bold;">■ 掲示板に入る（スレッド一覧）</a>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js"></script>
+  <section class="aa" id="admin-section">
+    <div id="onecolor"><h2>管理者メニュー</h2></div>
+    
+<div id="admin-auth-inputs">
+      <input type="text" id="admin-user" placeholder="管理者ID" style="width: 150px;">
+      <input type="password" id="admin-pass" placeholder="パスワード" style="width: 150px;">
+      <button onclick="handleAdminLogin()" class="submit-btn" style="padding: 5px 15px;">ログイン</button>
+    </div>
 
-<script>
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+ <div id="admin-console" style="display:none;">
+      <p>管理者：<strong id="admin-name"></strong> としてログイン中</p>
+      <button onclick="handleAdminLogout()" class="submit-btn" style="background-color: #e74c3c;">ログアウト</button>
+    </div>
+  </section>
 
-    async function loadThreads() {
-        const listContainer = document.getElementById('thread-list');
-        const { data: threads, error } = await supabaseClient
-            .from('threads')
-            .select('*')
-            .order('created_at', { ascending: false });
 
-        if (error) {
-            listContainer.innerHTML = "読み込みエラー";
-            return;
-        }
+  <section class="aa" id="create-thread">
+    <div id="onecolor">
+      <h2>新規スレッドを作成する</h2>
+    </div>
+    <p>新しい話題を投稿しましょう。画像などはDiscordへ！</p>
 
-        listContainer.innerHTML = threads.map(t => `
-            <div class="thread-row">
-                <a href="thread.html?id=${t.id}" class="thread-link">${t.title}</a>
-                <div class="thread-meta">
-                    名前: ${t.name} | 投稿日: ${new Date(t.created_at).toLocaleString()}
-                </div>
-            </div>
-        `).join('');
-    }
+ <form id="thread-form">
+      <div class="form-group-inner">
+        <label for="thread-title">スレッドタイトル</label>
+        <input type="text" id="thread-title" placeholder="タイトルを入力してください" required>
+      </div>
 
-    document.getElementById('create-thread-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = document.getElementById('submit-btn');
-        btn.disabled = true;
+ <div class="form-group-inner">
+        <label for="user-name">名前（省略可）</label>
+        <input type="text" id="user-name" placeholder="名無しさん">
+      </div>
 
-        const title = document.getElementById('t-title').value;
-        const name = document.getElementById('t-name').value || "名無しさん";
-        const content = document.getElementById('t-content').value;
+<div class="form-group-inner">
+        <label for="content">本文</label>
+        <textarea id="content" rows="8" placeholder="ここに内容を書き込んでください" required></textarea>
+      </div>
 
-        const { data: newThread, error } = await supabaseClient
-            .from('threads')
-            .insert([{ title, name, content }])
-            .select().single();
+<button type="submit" class="submit-btn">スレッドを作成する</button>
+    </form>
+  </section>
+ <section class="aa">
+    <div id="onecolor">
+      <h2>スレッド一覧</h2>
+    </div>
+    <div id="thread-container">
+      <p>読み込み中...</p>
+    </div>
+  </section>
 
-        if (error) {
-            alert("作成失敗");
-            btn.disabled = false;
-        } else {
-            window.location.href = `thread.html?id=${newThread.id}`;
-        }
-    });
+  <script src="config.js"></script>
+  <script src="bbs.js"></script>
 
-    loadThreads();
-</script>
 </body>
 </html>

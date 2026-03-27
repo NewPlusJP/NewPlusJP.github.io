@@ -7,12 +7,13 @@
 }
 
 body {
-  font-family: 'Helvetica Neue', "MS PGothic", "Hiragino Kaku Gothic ProN", sans-serif;
+  /* 古いMSゴシック系を排除し、システム標準の綺麗なフォントを指定 */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
   background: linear-gradient(to bottom, #f0f4f8, #d9e2ec);
   margin: 0;
   padding: 0;
   color: #333;
-  line-height: 1.4;
+  line-height: 1.6; /* 読みやすさのために少し広げた */
 }
 
 /* --- 2. 君のこだわりの「やわらかい」枠組み --- */
@@ -80,9 +81,14 @@ input:focus, textarea:focus {
 
 .submit-btn:hover { background-color: #2980b9; transform: translateY(-2px); }
 
-/* --- 4. 2ch風の要素 --- */
+/* --- 4. 2ch風の要素（フォント修正済み） --- */
 .res-name { color: var(--name-color); font-weight: bold; }
 .res-meta { color: #666; font-size: 0.9em; }
-.res-content { margin: 5px 0 15px 20px; white-space: pre-wrap; font-family: "MS PGothic", sans-serif; }
+.res-content { 
+  margin: 5px 0 15px 20px; 
+  white-space: pre-wrap; 
+  /* ここもbodyと同じモダンフォントに変更 */
+  font-family: inherit; 
+}
 a { color: var(--anchor-color); text-decoration: none; }
 a:hover { text-decoration: underline; }
