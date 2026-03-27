@@ -50,17 +50,13 @@ async function loadThreads() {
 // --- 3. 削除機能 ---
 async function deleteThread(id) {
   if (!confirm("このスレッド内のレスごと完全に削除しますか？")) return;
-  
-  // 関連するレスを削除
   await supabaseClient.from('posts').delete().eq('thread_id', id);
-  // スレッド自体を削除
   const { error } = await supabaseClient.from('threads').delete().eq('id', id);
-  
   if (error) alert("削除失敗: " + error.message);
   else loadThreads();
 }
 
-// --- 4. スレ立て機能（成功時にそのスレへ移動するように修正） ---
+// --- 4. スレ立て機能 ---
 const threadForm = document.getElementById('thread-form');
 if (threadForm) {
   threadForm.addEventListener('submit', async function(e) {
@@ -69,7 +65,6 @@ if (threadForm) {
     const name = document.getElementById('user-name').value || "名無しさん";
     const content = document.getElementById('content').value;
     
-    // insert後にselect()を付けることで、作成したデータのIDを受け取れるようにする
     const { data, error } = await supabaseClient
       .from('threads')
       .insert([{ title, name, content }])
@@ -79,20 +74,19 @@ if (threadForm) {
       alert("スレ立て失敗: " + error.message);
     } else if (data && data.length > 0) {
       this.reset();
-      // 作成したスレッドの個別ページへジャンプ
       window.location.href = `thread.html?id=${data[0].id}`;
     }
   });
 }
 
-// --- 5. 管理者ログイン（エラー対策版） ---
+// --- 5. 管理者ログイン（最強デバッグ版） ---
 async function handleAdminLogin() {
-  const user = document.getElementById('admin-user').value;
-  const pass = document.getElementById('admin-pass').value;
+  // .trim() を追加して、前後の余計な空白を自動削除！
+  const user = document.getElementById('admin-user').value.trim();
+  const pass = document.getElementById('admin-pass').value.trim();
 
-  console.log("ログイン試行:", user);
+  console.log("ログイン試行中...");
 
-  // .single() を使わずに取得することで、0件の時にエラーが出るのを防ぐ
   const { data, error } = await supabaseClient
     .from('admin_users')
     .select('*')
@@ -101,16 +95,22 @@ async function handleAdminLogin() {
 
   if (error) {
     console.error("通信エラー:", error.message);
-    alert("ログイン中にエラーが発生しました");
+    alert("通信エラー: " + error.message);
   } else if (data && data.length > 0) {
-    // データが見つかった（＝IDとパスワードが一致した）
     alert("ログイン成功！");
     localStorage.setItem('is_admin', 'true');
     localStorage.setItem('admin_name', data[0].username);
     location.reload(); 
   } else {
-    // データが0件だった
-    alert("ログイン失敗: IDまたはパスワードが違います");
+    // 【重要】失敗したときにDBの中身をチラ見して原因を探る
+    const { data: checkData } = await supabaseClient.from('admin_users').select('username');
+    
+    if (!checkData || checkData.length === 0) {
+      alert("ログイン失敗：そもそもDBに管理者が1人も登録されていません！SQL EditorでINSERTしてください。");
+    } else {
+      alert(`ログイン失敗：IDまたはパスワードが一致しません。\n(DBには ${checkData.length} 件のデータが存在します)`);
+      console.log("DBに登録されているユーザー名リスト:", checkData.map(d => d.username));
+    }
   }
 }
 
