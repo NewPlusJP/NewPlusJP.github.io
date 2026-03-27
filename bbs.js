@@ -50,10 +50,15 @@ async function loadThreads() {
 // --- 3. 削除機能 ---
 async function deleteThread(id) {
   if (!confirm("このスレッド内のレスごと完全に削除しますか？")) return;
+  
+  // 1. まずそのスレに紐付くレスを全消去
   await supabaseClient.from('posts').delete().eq('thread_id', id);
+  
+  // 2. その後にスレ本体を消去
   const { error } = await supabaseClient.from('threads').delete().eq('id', id);
+  
   if (error) alert("削除失敗: " + error.message);
-  else loadThreads();
+  else location.reload();
 }
 
 // --- 4. スレ立て機能 ---
