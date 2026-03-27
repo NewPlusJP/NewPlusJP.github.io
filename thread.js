@@ -39,17 +39,17 @@ async function loadSingleThread() {
   // 保存されている名前を取得
   const savedName = localStorage.getItem('user_display_name') || "";
 
-  // ★ フォームを一番上（タイトルの直後）に配置！
+  // フォームを一番上に配置
   container.innerHTML = `
     <div class="aa">
       <h2 style="color: #ff0000; margin-bottom: 5px;">${thread.title}</h2>
       
-      <div style="background: #f0f0f0; padding: 10px; border: 1px solid #ccc; margin-bottom: 20px;">
+      <div style="background: #f0f0f0; padding: 20px; border-radius: 20px; border: 1px solid #ccc; margin-bottom: 20px;">
         <h3 style="margin-top:0;">レスを書き込む</h3>
         <form onsubmit="postReplyInThread(event)">
-          <input type="text" id="res-name" placeholder="名前" value="${savedName}" style="width: 200px; padding: 5px; margin-bottom: 5px;"><br>
-          <textarea id="res-content" placeholder="内容を入力" required style="width: 95%; height: 60px; padding: 5px;"></textarea><br>
-          <button type="submit" class="submit-btn" style="padding: 5px 20px; margin-top:5px;">書き込む</button>
+          <input type="text" id="res-name" placeholder="名前" value="${savedName}" style="width: 200px; padding: 8px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 5px;"><br>
+          <textarea id="res-content" placeholder="内容を入力" required style="width: 95%; height: 80px; padding: 10px; border-radius: 10px; border: 1px solid #ddd;"></textarea><br>
+          <button type="submit" class="submit-btn" style="padding: 8px 25px; margin-top:10px;">書き込む</button>
         </form>
       </div>
 
@@ -62,7 +62,7 @@ async function loadSingleThread() {
   loadPostsInThread(thread); 
 }
 
-// 3. レス表示
+// 3. レス表示（管理者バッジ対応）
 async function loadPostsInThread(threadData) {
   const postList = document.getElementById('res-list');
   const { data: posts } = await supabaseClient
@@ -83,12 +83,17 @@ async function loadPostsInThread(threadData) {
 
   postList.innerHTML = displayArray.map((post) => {
     const isOwner = post.is_owner;
+    // IDがADMINならバッジを表示
+    const isAdmin = (post.user_id_display === "ADMIN");
+    const adminBadge = isAdmin ? '<span style="background:#ff4757; color:white; padding:2px 8px; border-radius:10px; font-size:0.75em; margin-left:5px; vertical-align:middle;">管理者</span>' : '';
+    
     const nameColor = isOwner ? "#ff0000" : "green";
+    
     return `
-      <div style="margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
-        <span style="color:${nameColor}; font-weight:bold;">${post.name}</span> 
+      <div style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+        <span style="color:${nameColor}; font-weight:bold;">${post.name}${adminBadge}</span> 
         <small>：${new Date(post.created_at).toLocaleString()} ID:${post.user_id_display || "???"}</small>
-        <div style="margin-top:5px; white-space:pre-wrap;">${post.content}</div>
+        <div style="margin-top:8px; white-space:pre-wrap;">${post.content}</div>
       </div>
     `;
   }).join('');
@@ -100,11 +105,12 @@ async function postReplyInThread(event) {
   const nameInput = document.getElementById('res-name');
   const contentInput = document.getElementById('res-content');
   
-  // ★ 名前をブラウザに保存！
   const nameToSave = nameInput.value || "名無しさん";
   localStorage.setItem('user_display_name', nameToSave);
 
-  const myID = generateID();
+  // ★管理者ログイン中ならIDを ADMIN に固定する
+  const isAdminLoggedIn = localStorage.getItem('is_admin') === 'true';
+  const myID = isAdminLoggedIn ? "ADMIN" : generateID();
 
   await supabaseClient.from('posts').insert([{
     thread_id: threadId,

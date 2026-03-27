@@ -1,70 +1,41 @@
-/* --- 1. 変数とベース --- */
-:root {
-  --anchor-color: #0000ff;
-  --name-color: #228b22;
-  --body-bg: #efefef;
-  --thread-bg: #ffffff;
-}
-
+/* --- ベース --- */
 body {
-  /* 古いMSゴシック系を排除し、システム標準の綺麗なフォントを指定 */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: linear-gradient(to bottom, #f0f4f8, #d9e2ec);
   margin: 0;
   padding: 0;
   color: #333;
-  line-height: 1.6; /* 読みやすさのために少し広げた */
+  line-height: 1.6;
 }
 
-/* --- 2. 君のこだわりの「やわらかい」枠組み --- */
-.aa, .form-group, #apply-section {
+/* --- やわらかい枠組み (共通) --- */
+.aa, .thread-row, .post-form, .main-box {
   background-color: #ffffff;
-  border-radius: 30px;
+  border-radius: 30px; /* ここをすべて30pxに固定 */
   box-shadow: 0 4px 30px rgba(0,0,0,0.1);
   padding: 30px;
-  margin: 30px auto;
-  max-width: 1000px;
+  margin: 20px auto;
+  max-width: 900px;
   text-align: left;
-  transition: transform 0.3s ease;
+  border: none; /* 外枠の線を消して丸みを強調 */
 }
 
-.aa:hover, .form-group:hover, #apply-section:hover {
-  transform: translateY(-5px);
+/* スレッド詳細内の各レスも少し丸くする */
+.res-item {
+  background-color: #fff;
+  border-radius: 15px;
+  padding: 15px;
+  margin-bottom: 15px;
+  border: 1px solid #eee;
 }
 
-header {
-  background-color: #2c3e50;
-  height: 150px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  text-shadow: 1px 1px 4px rgba(0,0,0,0.5);
-}
-
-h1 { padding: 1em; color: #2c3e50; text-align: left; }
-h2 { color: green; }
-h3 { color: #ff0000; font-size: 1.2em; margin: 0 0 10px 0; }
-
-/* --- 3. フォーム周り（モダン設定） --- */
-.form-group-inner { margin-bottom: 20px; }
-.form-group-inner label { display: block; font-weight: bold; margin-bottom: 8px; color: #2c3e50; }
-
+/* --- ボタンと入力欄 --- */
 input[type="text"], input[type="password"], textarea {
   width: 100%;
   padding: 12px;
   border: 1px solid #ddd;
-  border-radius: 12px;
-  background-color: #fafafa;
-  font-size: 16px;
+  border-radius: 15px; /* 入力欄も丸く */
   box-sizing: border-box;
-  transition: border-color 0.3s;
-}
-
-input:focus, textarea:focus {
-  outline: none;
-  border-color: #3498db;
-  background-color: #fff;
 }
 
 .submit-btn {
@@ -72,23 +43,7 @@ input:focus, textarea:focus {
   color: white;
   padding: 12px 30px;
   border: none;
-  border-radius: 25px;
-  font-size: 16px;
+  border-radius: 25px; /* ボタンはさらに丸く */
   font-weight: bold;
   cursor: pointer;
-  transition: background 0.3s, transform 0.2s;
 }
-
-.submit-btn:hover { background-color: #2980b9; transform: translateY(-2px); }
-
-/* --- 4. 2ch風の要素（フォント修正済み） --- */
-.res-name { color: var(--name-color); font-weight: bold; }
-.res-meta { color: #666; font-size: 0.9em; }
-.res-content { 
-  margin: 5px 0 15px 20px; 
-  white-space: pre-wrap; 
-  /* ここもbodyと同じモダンフォントに変更 */
-  font-family: inherit; 
-}
-a { color: var(--anchor-color); text-decoration: none; }
-a:hover { text-decoration: underline; }
