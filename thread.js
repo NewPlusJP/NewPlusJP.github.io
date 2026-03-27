@@ -69,96 +69,104 @@ async function loadSingleThread() {
   await loadPostsInThread(); 
 }
 
-// 3. レス表示
+// --- 3. レス表示（DBからフラグを読み込んで反映） ---
 async function loadPostsInThread() {
   const postList = document.getElementById('res-list');
   if (!postList || !currentThreadData) return;
 
-  const isAdmin = localStorage.getItem('is_admin') === 'true';
-
-  // ★ select('*') で is_admin_only も確実に取得する
   const { data: posts, error } = await supabaseClient
     .from('posts')
-    .select('*') 
+    .select('*') // ★全てのカラム（is_admin_only含む）を取得
     .eq('thread_id', threadId)
     .order('id', { ascending: false })
     .limit(20);
 
-  if (error) {
-    console.error("データ取得エラー:", error);
-    return;
-  }
+  if (error) return;
 
   const displayArray = [...(posts || [])];
-  
-  // スレ主データ（これは管理者限定ではないので false 固定）
   displayArray.push({
-    id: "first",
     name: currentThreadData.name,
     content: currentThreadData.content,
-    created_at: currentThreadat,
+    created_at: currentThreadData.created_at,
     user_id_display: "OWNER",
     is_owner: true,
-    is_admin_only: false 
+    is_admin_only: false // スレ主は通常
   });
 
   postList.innerHTML = displayArray.map((post) => {
-    const isOwner = post.is_owner;
-    const postIsAdmin = (post.user_id_display === "ADMIN");
-    const adminBadge = postIsAdmin ? '<span style="background:#ff4757; color:white; padding:2px 8px; border-radius:10px; font-size:0.75em; margin-left:5px; vertical-align:middle;">管理者</span>' : '';
-    
-    // ★ 再読み込みしても消えないように、保存された post.is_admin_only を使う
-    const isSecretMode = post.is_admin_only === true;
-    const adminLabel = isSecretMode ? '<span style="color:#ff4757; font-weight:bold;">【管理者のみ発言可】</span>' : '';
-    const specialStyle = isSecretMode ? 'background:#fff9e6; border-left:5px solid #ff4757; padding-left:15px;' : '';
+    const isAdminUser = (post.user_id_display === "ADMIN");
+    // DBに保存されているフラグを直接見る（ここがズレてると再読み込みで消える）
+    const isSecretMode = post.is_admin_only === true; 
 
-    const nameColor = isOwner ? "#ff0000" : "green";
+    const specialStyle = isSecretMode ? 'background:#fff9e6; border-left:5px solid #ff4757; padding-left:15px;' : '';
+    const adminLabel = isSecretMode ? '<span style="color:#ff4757; font-weight:bold;">【管理者のみ発言可】</span>' : '';
+    const nameColor = post.is_owner ? "#ff0000" : "green";
     
     return `
       <div style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding: 10px; ${specialStyle}">
-        <span style="color:${nameColor}; font-weight:bold;">${post.name}${adminBadge}</span> 
-        <small>：${new Date(post.created_at).toLocaleString()} ID:${post.user_id_display || "???"}</small>
+        <span style="color:${nameColor}; font-weight:bold;">${post.name}${isAdminUser ? ' [管理者]' : ''}</span> 
+        <small>：${new Date(post.created_at).toLocaleString()} ID:${post.user_id_display}</small>
         <div style="margin-top:8px; white-space:pre-wrap;">${adminLabel}${post.content}</div>
       </div>
     `;
   }).join('');
 }
 
-// 4. 投稿
+// --- 4. 投稿（DBにフラグを正しく送る） ---
 async function postReplyInThread(event) {
   event.preventDefault();
+  
   const contentInput = document.getElementById('res-content');
   const nameInput = document.getElementById('res-name');
   const submitBtn = document.getElementById('submit-btn');
+  // チェックボックスの要素をしっかり取得
   const adminOnlyCheck = document.getElementById('admin-only-chat');
 
+  const contentValue = contentInput.value;
+  if (!contentValue.trim()) return;
+
+  // ★ここでチェックが入っているか確認
   const isSecret = adminOnlyCheck ? adminOnlyCheck.checked : false;
   const myID = (localStorage.getItem('is_admin') === 'true') ? "ADMIN" : generateID();
 
   submitBtn.disabled = true;
+  submitBtn.innerText = "送信中...";
+
+  // ★insertの中に「is_admin_only」をしっかり入れる
   const { error } = await supabaseClient.from('posts').insert([{
     thread_id: threadId,
     name: nameInput.value || "名無しさん",
-    content: contentInput.value,
+    content: contentValue,
     user_id_display: myID,
-    is_admin_only: isSecret
+    is_admin_only: isSecret // ここがDBに保存される！
   }]);
 
   if (!error) {
     contentInput.value = "";
-    if (Notification.permission === "granted") new Notification("投稿完了！");
+    if (adminOnlyCheck) adminOnlyCheck.checked = false; // 送信後はチェックを外す
     await cleanOldPosts();    
     await loadPostsInThread(); 
+  } else {
+    alert("エラー: " + error.message);
   }
+
   submitBtn.disabled = false;
+  submitBtn.innerText = "書き込む";
 }
 
-// お掃除
+// 5. お掃除（20件制限）
 async function cleanOldPosts() {
-  const { data } = await supabaseClient.from('posts').select('id').eq('thread_id', threadId).order('id', { ascending: false });
+  const { data } = await supabaseClient
+    .from('posts')
+    .select('id')
+    .eq('thread_id', threadId)
+    .order('id', { ascending: false });
+
   if (data && data.length > 20) {
-    await supabaseClient.from('posts').delete().in('id', data.slice(20).map(p => p.id));
+    const idsToDelete = data.slice(20).map(p => p.id);
+    await supabaseClient.from('posts').delete().in('id', idsToDelete);
   }
 }
 
+// 起動時に実行
 document.addEventListener('DOMContentLoaded', loadSingleThread);
