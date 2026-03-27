@@ -27,86 +27,58 @@ function generateID() {
 
 // 2. スレッド読み込み
 async function loadSingleThread() {
-  const container = document.getElementById('single-thread-container');
-  if (!container || !threadId) return;
-
+  // ... (省略)
   const { data: thread } = await supabaseClient.from('threads').select('*').eq('id', threadId).maybeSingle();
-  if (!thread) {
-    container.innerHTML = 'スレッドが見つかりません';
-    return;
-  }
-
+  
   currentThreadData = thread; 
   const isAdmin = localStorage.getItem('is_admin') === 'true';
 
-  // 管理者のみチェックボックスを表示
-  const adminOnlyToggle = isAdmin ? `
-    <label style="display:inline-block; margin: 5px 0; color: #ff4757; font-weight: bold; cursor: pointer; background: #fff; padding: 5px 10px; border-radius: 10px; border: 1px solid #ff4757;">
-      <input type="checkbox" id="admin-only-chat"> 🔒 管理者のみ発言可モード
-    </label>
-  ` : '';
+  // もし「運営専用スレッド」ならタイトルにマークをつける
+  const adminThreadMark = thread.is_admin_thread ? '<span style="font-size:0.6em; background:#ff4757; color:#fff; padding:2px 5px; border-radius:4px; vertical-align:middle; margin-right:5px;">運営専用</span>' : '';
 
   container.innerHTML = `
     <div class="aa">
-      <h2 style="color: #ff0000;">${thread.title}</h2>
-      <div style="background: #f0f0f0; padding: 20px; border-radius: 20px; border: 1px solid #ccc; margin-bottom: 20px;">
-        <form id="reply-form">
-          <input type="text" id="res-name" value="${localStorage.getItem('user_display_name') || ''}" placeholder="名前" style="width:200px; padding:8px; border-radius:10px; border:1px solid #ddd;"><br>
-          ${adminOnlyToggle}
-          <textarea id="res-content" placeholder="内容を入力" required style="width:95%; height:80px; padding:10px; border-radius:10px; border:1px solid #ddd; margin-top:5px;"></textarea><br>
-          <div style="display:flex; justify-content:space-between; margin-top:10px;">
-            <button type="submit" id="submit-btn" class="submit-btn">書き込む</button>
-            <button type="button" onclick="requestNotification()" style="background:none; border:none; color:#666; font-size:0.8em; cursor:pointer; text-decoration:underline;">🔔通知をオン</button>
-          </div>
-        </form>
-      </div>
+      <h2 style="color: ${thread.is_admin_thread ? '#ff4757' : '#ff0000'};">
+        ${adminThreadMark}${thread.title}
+      </h2>
+      
+      ${thread.is_admin_thread && !isAdmin ? 
+        '<div style="background:#eee; padding:10px; border-radius:10px; text-align:center;">このスレッドは運営のみ書き込み可能です。</div>' : 
+        ` <div style="background: #f0f0f0; padding: 20px; border-radius: 20px; border: 1px solid #ccc; margin-bottom: 20px;">
+            <form id="reply-form">
+               </form>
+          </div> `
+      }
       <div id="res-list"></div>
-      <div style="margin-top:20px;"><a href="index.html">■トップに戻る</a></div>
     </div>
   `;
-
-  document.getElementById('reply-form').addEventListener('submit', postReplyInThread);
-  await loadPostsInThread(); 
+  // ...
 }
 
-// --- 3. レス表示（DBからフラグを読み込んで反映） ---
+// 3. レス表示（さらに色を際立たせる）
 async function loadPostsInThread() {
-  const postList = document.getElementById('res-list');
-  if (!postList || !currentThreadData) return;
-
-  const { data: posts, error } = await supabaseClient
-    .from('posts')
-    .select('*') // ★全てのカラム（is_admin_only含む）を取得
-    .eq('thread_id', threadId)
-    .order('id', { ascending: false })
-    .limit(20);
-
-  if (error) return;
-
-  const displayArray = [...(posts || [])];
-  displayArray.push({
-    name: currentThreadData.name,
-    content: currentThreadData.content,
-    created_at: currentThreadData.created_at,
-    user_id_display: "OWNER",
-    is_owner: true,
-    is_admin_only: false // スレ主は通常
-  });
-
+  // ... (データ取得部分は同じ)
   postList.innerHTML = displayArray.map((post) => {
-    const isAdminUser = (post.user_id_display === "ADMIN");
-    // DBに保存されているフラグを直接見る（ここがズレてると再読み込みで消える）
     const isSecretMode = post.is_admin_only === true; 
 
-    const specialStyle = isSecretMode ? 'background:#fff9e6; border-left:5px solid #ff4757; padding-left:15px;' : '';
-    const adminLabel = isSecretMode ? '<span style="color:#ff4757; font-weight:bold;">【管理者のみ発言可】</span>' : '';
-    const nameColor = post.is_owner ? "#ff0000" : "green";
-    
+    // デザインをさらに「特別」に
+    const specialStyle = isSecretMode ? `
+      background: #fff9e6; 
+      border: 2px solid #ff4757; 
+      border-radius: 15px; 
+      box-shadow: 0 4px 15px rgba(255, 71, 87, 0.1);
+      position: relative;
+    ` : 'border-bottom: 1px solid #eee;';
+
+    const adminBadge = isSecretMode ? `
+      <div style="position:absolute; top:-10px; right:10px; background:#ff4757; color:#fff; font-size:10px; padding:2px 8px; border-radius:10px;">公式回答</div>
+    ` : '';
+
     return `
-      <div style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding: 10px; ${specialStyle}">
-        <span style="color:${nameColor}; font-weight:bold;">${post.name}${isAdminUser ? ' [管理者]' : ''}</span> 
-        <small>：${new Date(post.created_at).toLocaleString()} ID:${post.user_id_display}</small>
-        <div style="margin-top:8px; white-space:pre-wrap;">${adminLabel}${post.content}</div>
+      <div style="margin-bottom: 20px; padding: 15px; ${specialStyle}">
+        ${adminBadge}
+        <span style="color:${post.is_owner ? '#ff0000' : 'green'}; font-weight:bold;">${post.name}</span>
+        <div style="margin-top:8px;">${post.content}</div>
       </div>
     `;
   }).join('');
