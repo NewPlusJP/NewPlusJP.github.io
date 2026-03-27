@@ -39,7 +39,7 @@ async function loadSingleThread() {
   // 保存されている名前を取得
   const savedName = localStorage.getItem('user_display_name') || "";
 
-  // ★ フォームを一番上（タイトルの直後）に配置！
+  // フォームを一番上に配置（リンク先を threadlist.html に修正）
   container.innerHTML = `
     <div class="aa">
       <h2 style="color: #ff0000; margin-bottom: 5px;">${thread.title}</h2>
@@ -55,7 +55,10 @@ async function loadSingleThread() {
 
       <div id="res-list">読み込み中...</div>
       
-      <div style="margin-top:20px;"><a href="index.html">■掲示板トップに戻る</a></div>
+      <div style="margin-top:20px;">
+        <a href="threadlist.html">■ スレッド一覧に戻る</a><br>
+        <a href="index.html" style="font-size:0.8em; color:#666;">トップページへ</a>
+      </div>
     </div>
   `;
 
@@ -65,6 +68,8 @@ async function loadSingleThread() {
 // 3. レス表示
 async function loadPostsInThread(threadData) {
   const postList = document.getElementById('res-list');
+  const myID = generateID(); // 自分のIDを取得
+  
   const { data: posts } = await supabaseClient
     .from('posts')
     .select('*')
@@ -83,9 +88,14 @@ async function loadPostsInThread(threadData) {
 
   postList.innerHTML = displayArray.map((post) => {
     const isOwner = post.is_owner;
+    const isMe = (post.user_id_display === myID); // 自分の書き込みか判定
     const nameColor = isOwner ? "#ff0000" : "green";
+    
+    // 自分のレスなら背景を薄い黄色にする
+    const bgColor = isMe ? "background-color: #ffffe0;" : "";
+
     return `
-      <div style="margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
+      <div style="margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px; ${bgColor}">
         <span style="color:${nameColor}; font-weight:bold;">${post.name}</span> 
         <small>：${new Date(post.created_at).toLocaleString()} ID:${post.user_id_display || "???"}</small>
         <div style="margin-top:5px; white-space:pre-wrap;">${post.content}</div>
@@ -100,7 +110,6 @@ async function postReplyInThread(event) {
   const nameInput = document.getElementById('res-name');
   const contentInput = document.getElementById('res-content');
   
-  // ★ 名前をブラウザに保存！
   const nameToSave = nameInput.value || "名無しさん";
   localStorage.setItem('user_display_name', nameToSave);
 
@@ -113,7 +122,7 @@ async function postReplyInThread(event) {
     user_id_display: myID
   }]);
 
-  // お掃除ロジック（最新20件）
+  // お掃除（最新20件）
   const { data: allPosts } = await supabaseClient
     .from('posts')
     .select('id')
