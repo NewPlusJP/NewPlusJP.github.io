@@ -55,33 +55,31 @@ async function loadSingleThread() {
   // ...
 }
 
-// 3. レス表示（さらに色を際立たせる）
+// 3. レス表示（通信エラーに強くする）
 async function loadPostsInThread() {
-  // ... (データ取得部分は同じ)
-  postList.innerHTML = displayArray.map((post) => {
-    const isSecretMode = post.is_admin_only === true; 
+  const postList = document.getElementById('res-list');
+  if (!postList) return;
 
-    // デザインをさらに「特別」に
-    const specialStyle = isSecretMode ? `
-      background: #fff9e6; 
-      border: 2px solid #ff4757; 
-      border-radius: 15px; 
-      box-shadow: 0 4px 15px rgba(255, 71, 87, 0.1);
-      position: relative;
-    ` : 'border-bottom: 1px solid #eee;';
+  // 読み込み開始の合図
+  postList.style.opacity = "0.5"; 
 
-    const adminBadge = isSecretMode ? `
-      <div style="position:absolute; top:-10px; right:10px; background:#ff4757; color:#fff; font-size:10px; padding:2px 8px; border-radius:10px;">公式回答</div>
-    ` : '';
+  const { data: posts, error } = await supabaseClient
+    .from('posts')
+    .select('*')
+    .eq('thread_id', threadId)
+    .order('id', { ascending: false })
+    .limit(20);
 
-    return `
-      <div style="margin-bottom: 20px; padding: 15px; ${specialStyle}">
-        ${adminBadge}
-        <span style="color:${post.is_owner ? '#ff0000' : 'green'}; font-weight:bold;">${post.name}</span>
-        <div style="margin-top:8px;">${post.content}</div>
-      </div>
-    `;
-  }).join('');
+  if (error) {
+    console.error("取得失敗:", error);
+    postList.innerHTML = `<div style="padding:10px; color:#666; font-size:0.8em;">⚠️ 通信が不安定です。電波の良い場所で自動更新を待つか、再読み込みしてください。</div>` + postList.innerHTML;
+    postList.style.opacity = "1";
+    return;
+  }
+
+  // --- (ここから下の表示処理は前と同じ) ---
+  postList.style.opacity = "1";
+  // ... map処理など ...
 }
 
 // --- 4. 投稿（DBにフラグを正しく送る） ---
