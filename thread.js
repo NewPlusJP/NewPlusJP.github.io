@@ -189,7 +189,7 @@ async function cleanOldPosts() {
     .from('posts')
     .select('id')
     .eq('thread_id', threadId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: true });
 
   if (data && data.length > 20) {
     const idsToDelete = data.slice(20).map(p => p.id);
