@@ -9,7 +9,7 @@ async function loadThreads() {
   const { data: threads, error } = await supabaseClient
     .from('threads')
     .select('*')
-    .order('id', { ascending: false });
+    .order('id', { ascending: true });
 
   if (error) {
     container.innerHTML = '<p>エラー: ' + error.message + '</p>';
