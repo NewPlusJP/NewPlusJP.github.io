@@ -26,30 +26,48 @@
 
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
-  // ここにあなたのURLとKEYを貼ってください
   const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_BA9fejewdKLR7e_WfyBNyQ_2x0Mtrx9";
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   async function handleSignUp() {
-  alert("ボタンは動いてるよ！");
-}
+    try {
+      const user = document.getElementById('username').value;
+      const pass = document.getElementById('password').value;
 
-    if (user.length < 2 || pass.length < 4) return alert("短すぎます！");
+      if (!user || !pass) {
+        alert("名前とパスワードを入力してください");
+        return; // 関数の中なのでこれは正しい
+      }
 
-    // 重複チェック
-    const { data: exist } = await supabase.from('user_accounts').select('username').eq('username', user).maybeSingle();
-    if (exist) return alert("その名前はもう使われています！");
+      // 重複チェック
+      const { data: exist, error: checkError } = await supabase
+        .from('user_accounts')
+        .select('username')
+        .eq('username', user)
+        .maybeSingle();
 
-    // 保存
-    const { error } = await supabase.from('user_accounts').insert([{ username: user, password: pass }]);
-    if (error) {
-      alert("エラー: " + error.message);
-    } else {
-      alert("登録完了！ログインしてね。");
-      window.location.href = "login.html";
+      if (exist) {
+        alert("その名前はすでに使われています");
+        return;
+      }
+
+      // 登録
+      const { error: insError } = await supabase
+        .from('user_accounts')
+        .insert([{ username: user, password: pass }]);
+
+      if (insError) {
+        alert("登録エラー: " + insError.message);
+      } else {
+        alert("登録完了！ログイン画面へ移動します");
+        window.location.href = "login.html";
+      }
+    } catch (e) {
+      console.error(e);
+      alert("予期せぬエラーが発生しました");
     }
-  }
+  } // ← 最後までしっかりカッコで囲まれているか確認！
 </script>
 </body>
 </html>
