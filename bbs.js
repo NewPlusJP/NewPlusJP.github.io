@@ -1,9 +1,8 @@
-// --- 1. 設定と初期化 ---
-const SUPABASE_URL = 'https://ezishztrukqnrqsvaeur.supabase.co'; 
-const SUPABASE_ANON_KEY = 'sb_publishable_BA9fejewdKLR7e_WfyBNyQ_2x0Mtrx9';
-
-const { createClient } = window.supabase; 
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// --- 1. 初期化 (config.jsで宣言済みならここは不要ですが、念のためチェック) ---
+if (typeof supabaseClient === 'undefined') {
+  var { createClient } = window.supabase;
+  var supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
 
 // --- 2. スレッド一覧を表示 ---
 async function loadThreads() {
@@ -153,7 +152,8 @@ function checkAdminStatus() {
   if (isAdmin && adminConsole) {
     adminConsole.style.display = 'block';
     adminInputs.style.display = 'none';
-    document.getElementById('admin-name').innerText = localStorage.getItem('admin_name');
+    const nameDisp = document.getElementById('admin-name');
+    if (nameDisp) nameDisp.innerText = localStorage.getItem('admin_name');
   }
 }
 
