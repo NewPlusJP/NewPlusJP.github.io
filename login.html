@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ログイン - NewPlusJP</title>
+  <style>
+    /* signup.htmlと同じスタイルでOK */
+    body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding-top: 50px; }
+    .auth-card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 300px; text-align: center; }
+    input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; }
+    .btn-login { width: 100%; padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; background: #2ed573; color: white; }
+    .link-text { display: block; margin-top: 15px; font-size: 0.8em; color: #555; }
+  </style>
+</head>
+<body>
+
+<div class="auth-card">
+  <h2>ログイン</h2>
+  <input type="text" id="username" placeholder="ユーザー名">
+  <input type="password" id="password" placeholder="パスワード">
+  <button class="btn-login" onclick="handleLogin()">ログインする</button>
+  
+  <a href="signup.html" class="link-text">新しくアカウントを作る</a>
+  <a href="index.html" class="link-text">トップに戻る</a>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "YOUR_SUPABASE_URL";
+  const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  async function handleLogin() {
+    const user = document.getElementById('username').value;
+    const pass = document.getElementById('password').value;
+
+    const { data, error } = await supabase
+      .from('user_accounts')
+      .select('*')
+      .eq('username', user)
+      .eq('password', pass)
+      .maybeSingle();
+
+    if (data) {
+      alert("おかえりなさい！");
+      localStorage.setItem('user_display_name', user); // 名前を保存
+      window.location.href = "index.html";
+    } else {
+      alert("名前かパスワードが違います！");
+    }
+  }
+</script>
+</body>
+</html>

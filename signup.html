@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>新規登録 - NewPlusJP</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding-top: 50px; }
+    .auth-card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 300px; text-align: center; }
+    input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; }
+    .btn-signup { width: 100%; padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; background: #ff4757; color: white; }
+    .link-text { display: block; margin-top: 15px; font-size: 0.8em; color: #555; }
+  </style>
+</head>
+<body>
+
+<div class="auth-card">
+  <h2>アカウント作成</h2>
+  <input type="text" id="username" placeholder="使いたいユーザー名">
+  <input type="password" id="password" placeholder="パスワード（4文字以上）">
+  <p>アカウントを作成すると利用規約に同意したことになります。</p>
+  <button class="btn-signup" onclick="handleSignUp()">登録する</button>
+  
+  <a href="login.html" class="link-text">すでにアカウントを持っている</a>
+  <a href="index.html" class="link-text">トップに戻る</a>
+</div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  // ここにあなたのURLとKEYを貼ってください
+  const SUPABASE_URL = "YOUR_SUPABASE_URL";
+  const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  async function handleSignUp() {
+    const user = document.getElementById('username').value;
+    const pass = document.getElementById('password').value;
+
+    if (user.length < 2 || pass.length < 4) return alert("短すぎます！");
+
+    // 重複チェック
+    const { data: exist } = await supabase.from('user_accounts').select('username').eq('username', user).maybeSingle();
+    if (exist) return alert("その名前はもう使われています！");
+
+    // 保存
+    const { error } = await supabase.from('user_accounts').insert([{ username: user, password: pass }]);
+    if (error) {
+      alert("エラー: " + error.message);
+    } else {
+      alert("登録完了！ログインしてね。");
+      window.location.href = "login.html";
+    }
+  }
+</script>
+</body>
+</html>

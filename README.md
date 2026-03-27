@@ -10,6 +10,14 @@
 <body>
   <header>
     <h1>NewPlusJP</h1>
+    <header>
+  <h1>NewPlusJP</h1>
+  <div id="online-counter" style="text-align: right; font-size: 0.8em; color: #666; padding-right: 10px;">
+    現在 0 人が閲覧中
+  </div>
+  <div id="auth-status" style="text-align: right; padding: 10px; font-size: 0.9em; border-bottom: 1px solid #ddd;">
+  </div>
+    </header>
   </header>
 
   <div class="aa">
@@ -25,21 +33,23 @@
   </div>
 
   <div class="aa">
-    <h2>利用規約&スレッド一覧</h2>
+    <h2>エントランス</h2>
     <a href="rule.html" style="font-size: 1.2em; font-weight: bold;">■ 【重要】利用規約</a><br>
     <a href="threadlist.html" style="font-size: 1.2em; font-weight: bold;">■ 掲示板に入る（スレッド一覧）</a>
+    <a href="signup.html" style="font-size: 1.2em; font-weight: bold;">■ アカウント作成</a>
+    <a href="login.html" style="font-size: 1.2em; font-weight: bold;">■ アカウントにログイン</a>
   </div>
 
   <section class="aa" id="admin-section">
     <div id="onecolor"><h2>管理者メニュー</h2></div>
     
-<div id="admin-auth-inputs">
+ <div id="admin-auth-inputs">
       <input type="text" id="admin-user" placeholder="管理者ID" style="width: 150px;">
       <input type="password" id="admin-pass" placeholder="パスワード" style="width: 150px;">
       <button onclick="handleAdminLogin()" class="submit-btn" style="padding: 5px 15px;">ログイン</button>
     </div>
 
-<div id="admin-console" style="display:none;">
+  <div id="admin-console" style="display:none;">
       <p>管理者：<strong id="admin-name"></strong> としてログイン中</p>
       <button onclick="handleAdminLogout()" class="submit-btn" style="background-color: #e74c3c;">ログアウト</button>
     </div>
@@ -51,20 +61,20 @@
     </div>
     <p>新しい話題を投稿しましょう。画像などはDiscordへ！</p>
 
- <form id="thread-form">
+   <form id="thread-form">
       <div class="form-group-inner">
         <label for="thread-title">スレッドタイトル</label>
         <input type="text" id="thread-title" placeholder="タイトルを入力してください" required>
       </div>
 
-   <div id="admin-thread-option"></div>
+  <div id="admin-thread-option"></div>
 
   <div class="form-group-inner">
         <label for="user-name">名前（省略可）</label>
         <input type="text" id="user-name" placeholder="名無しさん">
       </div>
 
-  <div class="form-group-inner">
+   <div class="form-group-inner">
         <label for="content">本文</label>
         <textarea id="content" rows="8" placeholder="ここに内容を書き込んでください" required></textarea>
       </div>

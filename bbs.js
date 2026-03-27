@@ -138,3 +138,67 @@ document.addEventListener('DOMContentLoaded', () => {
   loadThreads();
   checkAdminStatus();
 });
+
+// --- 簡易オンラインカウンター ---
+async function updateOnlineCount() {
+  const counterEl = document.getElementById('online-counter');
+  if (!counterEl) return;
+
+  // 1〜5人くらいでランダムに「見てる感」を出す（簡単な方法）
+  // もし本格的にやるならSupabase Realtimeを使いますが、まずはこれで！
+  const baseCount = Math.floor(Math.random() * 3) + 1; 
+  counterEl.innerText = `現在 ${baseCount} 人が閲覧中`;
+}
+
+// DOMContentLoadedの中に追加
+document.addEventListener('DOMContentLoaded', () => {
+  loadThreads();
+  checkAdminStatus();
+  updateOnlineCount(); // これを追加
+});
+
+// --- ログイン状態を画面に反映させる関数 ---
+function updateAuthDisplay() {
+  const userName = localStorage.getItem('user_display_name');
+  const authStatusDiv = document.getElementById('auth-status'); // HTMLにこのIDのdivを作っておく
+  const nameInput = document.getElementById('user-name'); // 投稿フォームの名前欄
+
+  if (userName) {
+    // ログインしている場合
+    if (authStatusDiv) {
+      authStatusDiv.innerHTML = `
+        <span style="font-weight:bold; color:#2ed573;">● ログイン中: ${userName}さん</span>
+        <button onclick="logout()" style="margin-left:10px; font-size:0.8em;">ログアウト</button>
+      `;
+    }
+    // 投稿フォームの名前欄に、自動でユーザー名を入れる（書き換え不可にする）
+    if (nameInput) {
+      nameInput.value = userName;
+      nameInput.readOnly = true; 
+      nameInput.style.background = "#eee";
+    }
+  } else {
+    // ログインしていない場合
+    if (authStatusDiv) {
+      authStatusDiv.innerHTML = `
+        <a href="login.html" style="color:#ff4757; font-weight:bold;">ログイン</a> 
+        または <a href="signup.html">新規登録</a> して投稿を固定しよう！
+      `;
+    }
+  }
+}
+
+// ログアウト処理
+function logout() {
+  localStorage.removeItem('user_display_name');
+  // 管理者フラグも消すなら
+  localStorage.removeItem('is_admin');
+  location.reload();
+}
+
+// 既存のDOMContentLoadedに追加
+document.addEventListener('DOMContentLoaded', () => {
+  loadThreads();
+  checkAdminStatus();
+  updateAuthDisplay(); // ← これを追加！
+});
