@@ -1,95 +1,415 @@
-/* --- 1. 全体の雰囲気（やわらかいグラデとフォント） --- */
+/* 2ch風の配色設定 */
+
+:root {
+
+  --anchor-color: #0000ff;   /* アンカー（青） */
+
+  --name-color: #228b22;     /* 名前（緑） */
+
+  --body-bg: #efefef;        /* 背景（薄いグレー） */
+
+  --thread-bg: #ffffff;
+
+}
+
+
+
 body {
-  font-family: 'Helvetica Neue', Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
-  background: linear-gradient(to bottom, #f0f4f8, #d9e2ec);
-  margin: 0;
-  padding: 20px;
-  color: #333;
-  min-height: 100vh;
+
+  background-color: var(--body-bg);
+
+  font-family: "MS PGothic", "IPAMonaPGothic", "Mona", sans-serif; /* AAがズレにくいフォント */
+
+  font-size: 16px;
+
+  line-height: 1.4;
+
 }
 
-/* --- 2. メイン枠（class="aa"）をふわっと浮かせる --- */
+
+
+/* スレッドの外枠 */
+
 .aa {
-  background-color: #ffffff;
-  border-radius: 30px; /* 君が設定した「やわらかい」丸み */
-  box-shadow: 0 10px 30px rgba(0,0,0,0.08); /* きつすぎない影 */
-  padding: 40px;
-  margin: 20px auto;
+
+  background-color: var(--thread-bg);
+
+  border: none;
+
+  box-shadow: none; /* 影を消してフラットに */
+
+  border-bottom: 2px solid #ccc;
+
+  border-radius: 0; /* 丸みを消す */
+
   max-width: 900px;
-  text-align: left;
-  transition: transform 0.3s ease;
+
+  padding: 20px;
+
 }
 
-.aa:hover {
-  transform: translateY(-5px); /* マウスを乗せると少し浮く遊び心 */
-}
 
-/* --- 3. 見出し --- */
-h1 {
-  font-size: 2em;
-  color: #2c3e50;
-  margin-bottom: 20px;
-  border-left: 8px solid #3498db; /* アクセントの青い棒 */
-  padding-left: 15px;
-}
+
+/* スレタイ */
 
 h3 {
-  color: #e74c3c; /* スレタイはやさしい赤 */
-  margin-bottom: 15px;
+
+  color: #ff0000; /* スレタイは赤 */
+
+  font-size: 1.2em;
+
+  margin: 0 0 10px 0;
+
 }
 
-/* --- 4. フォーム（ここも角を丸くしてやわらかく！） --- */
-.post-form, .form-group {
-  background-color: #f9f9f9;
-  border-radius: 20px;
-  padding: 20px;
-  margin-bottom: 30px;
-}
 
-input[type="text"], textarea {
-  width: 100%;
-  padding: 12px 15px;
-  border: 2px solid #eee;
-  border-radius: 15px; /* 入力欄も丸く */
-  background-color: #fff;
-  font-size: 16px;
-  margin-bottom: 10px;
-  box-sizing: border-box;
-  transition: border-color 0.3s;
-}
 
-input:focus, textarea:focus {
-  outline: none;
-  border-color: #3498db; /* クリックした時に青くなる */
-}
+/* 名前欄 */
 
-/* --- 5. ボタン（ぷにっとした感じに） --- */
-.submit-btn {
-  background-color: #3498db;
-  color: white;
-  padding: 10px 25px;
-  border: none;
-  border-radius: 25px;
-  font-size: 16px;
+.res-name {
+
+  color: var(--name-color);
+
   font-weight: bold;
-  cursor: pointer;
-  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
-  transition: all 0.3s;
+
 }
+
+
+
+/* レス番号や日付 */
+
+.res-meta {
+
+  color: #666;
+
+  font-size: 0.9em;
+
+}
+
+
+
+/* 本文（AA対応） */
+
+.res-content {
+
+  margin: 5px 0 15px 20px;
+
+  white-space: pre; /* 改行やスペースをそのまま表示 */
+
+  font-family: "MS PGothic", sans-serif;
+
+}
+
+
+
+/* 入力フォームをスッキリさせる */
+
+input, textarea {
+
+  border: 1px solid #ccc;
+
+  padding: 5px;
+
+  font-size: 14px;
+
+}
+
+
+
+.submit-btn {
+
+  background-color: #e9e9e9;
+
+  color: #000;
+
+  border: 1px solid #aaa;
+
+  border-radius: 3px;
+
+  cursor: pointer;
+
+}
+
+
 
 .submit-btn:hover {
-  background-color: #2980b9;
-  transform: scale(1.05); /* 押したくなる感じ */
+
+  background-color: #ddd;
+
 }
 
-/* --- 6. レス表示（ここも少し見やすく） --- */
-.res-name { color: #228b22; font-weight: bold; }
-.res-meta { color: #95a5a6; font-size: 0.9em; }
-.res-content {
-  background: #fdfdfd;
-  padding: 15px;
-  border-radius: 15px;
-  margin: 10px 0 20px 10px;
-  white-space: pre-wrap;
-  border: 1px solid #f0f0f0;
+
+
+
+
+
+
+.member-card img {
+
+  width: 125px;
+
+  height: 125px;
+
+  border-radius: 100%;
+
+}
+
+
+
+pre {
+
+  background-color: #f0f0f0;
+
+  padding: 1em;
+
+  overflow-x: auto;
+
+  border-radius:8px;
+
+  max-width: 100%;
+
+}
+
+
+
+code {
+
+  font-family: Consolas, Monaco, 'Courier New', monospace;
+
+  color: #333;
+
+  display: block;
+
+  white-space: pre;
+
+}
+
+
+
+.aa {
+
+  background-color: #ffffff;
+
+  border-radius: 30px;
+
+  box-shadow: 0 4px 30px rgba(0,0,0,0.1);
+
+  padding: 30px;
+
+  margin: 30px auto;
+
+  max-width: 1000px;
+
+  text-align: left;
+
+  transition: transform 0.3s ease;
+
+}
+
+
+
+.aa:hover {
+
+  transform: translateY(-5px);
+
+}
+
+body {
+
+  font-family: 'Helvetica Neue', sans-serif;
+
+  background: linear-gradient(to bottom, #f0f4f8, #d9e2ec);
+
+  margin: 0;
+
+  padding: 0;
+
+  color: #333;
+
+}
+
+
+
+h1 {
+
+  text-align:left;
+
+  padding: 1em;
+
+  color: #2c3e50;
+
+}
+
+
+
+header {
+
+  background-image: url('your-background.png');
+
+  background-size: cover;
+
+  background-position: center;
+
+  height: 300px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  color: white;
+
+  text-shadow: 1px 1px 4px rgba(0,0,0,0.5);
+
+}
+
+
+
+.form-group {
+
+  background-color: #ffffff;
+
+  border-radius: 30px;
+
+  box-shadow: 0 4px 30px rgba(0,0,0,0.1);
+
+  padding: 30px;
+
+  margin: 30px auto;
+
+  max-width: 1000px;
+
+  text-align: left;
+
+  transition: transform 0.3s ease;
+
+}
+
+
+
+.form-group:hover {
+
+  transform: translateY(-5px);
+
+}
+
+
+
+#apply-section {
+
+  background-color: #ffffff;
+
+  border-radius: 30px;
+
+  box-shadow: 0 4px 30px rgba(0,0,0,0.1);
+
+  padding: 30px;
+
+  margin: 30px auto;
+
+  max-width: 1000px;
+
+  text-align: left;
+
+  transition: transform 0.3s ease;
+
+}
+
+
+
+#onecolor {
+
+  color:green;
+
+}
+
+
+
+/* フォーム内の各アイテムの余白 */
+
+.form-group-inner {
+
+  margin-bottom: 20px;
+
+}
+
+
+
+.form-group-inner label {
+
+  display: block;
+
+  font-weight: bold;
+
+  margin-bottom: 8px;
+
+  color: #2c3e50;
+
+}
+
+
+
+/* 入力欄のデザイン（モダンに） */
+
+.form-group-inner input[type="text"],
+
+.form-group-inner textarea {
+
+  width: 100%;
+
+  padding: 12px;
+
+  border: 1px solid #ddd;
+
+  border-radius: 12px; /* 30pxだと丸すぎるので少し抑えめに */
+
+  background-color: #fafafa;
+
+  font-size: 16px;
+
+  box-sizing: border-box; /* 横幅からはみ出さないように */
+
+  transition: border-color 0.3s;
+
+}
+
+
+
+.form-group-inner input:focus,
+
+.form-group-inner textarea:focus {
+
+  outline: none;
+
+  border-color: #3498db;
+
+  background-color: #fff;
+
+}
+
+
+
+/* ボタンのデザイン */
+
+.submit-btn {
+
+  background-color: #3498db;
+
+  color: white;
+
+  padding: 12px 30px;
+
+  border: none;
+
+  border-radius: 25px;
+
+  font-size: 16px;
+
+  font-weight: bold;
+
+  cursor: pointer;
+
+  transition: background 0.3s, transform 0.2s;
+
 }
