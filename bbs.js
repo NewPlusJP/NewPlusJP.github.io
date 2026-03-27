@@ -23,7 +23,6 @@ async function loadThreads() {
     return;
   }
 
-  // 返信リストと返信フォームを削除し、タイトルと最初の本文だけに集約
   container.innerHTML = threads.map(thread => `
     <div class="aa" id="thread-card-${thread.id}">
       <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -50,7 +49,7 @@ async function loadThreads() {
 
 // --- 3. 削除機能 ---
 async function deleteThread(id) {
-  if (!confirm("このスレッドを内のレスごと完全に削除しますか？")) return;
+  if (!confirm("このスレッド内のレスごと完全に削除しますか？")) return;
   
   // 関連するレスを削除
   await supabaseClient.from('posts').delete().eq('thread_id', id);
@@ -61,7 +60,7 @@ async function deleteThread(id) {
   else loadThreads();
 }
 
-// --- 4. スレ立て機能 ---
+// --- 4. スレ立て機能（成功時にそのスレへ移動するように修正） ---
 const threadForm = document.getElementById('thread-form');
 if (threadForm) {
   threadForm.addEventListener('submit', async function(e) {
@@ -70,40 +69,51 @@ if (threadForm) {
     const name = document.getElementById('user-name').value || "名無しさん";
     const content = document.getElementById('content').value;
     
-    const { error } = await supabaseClient.from('threads').insert([{ title, name, content }]);
+    // insert後にselect()を付けることで、作成したデータのIDを受け取れるようにする
+    const { data, error } = await supabaseClient
+      .from('threads')
+      .insert([{ title, name, content }])
+      .select(); 
     
-    if (error) alert(error.message);
-    else {
-      alert("スレッドを作成しました！");
+    if (error) {
+      alert("スレ立て失敗: " + error.message);
+    } else if (data && data.length > 0) {
       this.reset();
-      loadThreads();
+      // 作成したスレッドの個別ページへジャンプ
+      window.location.href = `thread.html?id=${data[0].id}`;
     }
   });
 }
 
+// --- 5. 管理者ログイン（エラー対策版） ---
 async function handleAdminLogin() {
   const user = document.getElementById('admin-user').value;
   const pass = document.getElementById('admin-pass').value;
 
-  console.log("ログイン試行:", user); // デバッグ用
+  console.log("ログイン試行:", user);
 
+  // .single() を使わずに取得することで、0件の時にエラーが出るのを防ぐ
   const { data, error } = await supabaseClient
     .from('admin_users')
     .select('*')
     .eq('username', user)
-    .eq('password_hash', pass)
-    .single();
+    .eq('password_hash', pass);
 
   if (error) {
-    console.error("ログインエラー:", error.message);
-    alert("ログイン失敗: IDまたはパスワードが違います");
-  } else if (data) {
+    console.error("通信エラー:", error.message);
+    alert("ログイン中にエラーが発生しました");
+  } else if (data && data.length > 0) {
+    // データが見つかった（＝IDとパスワードが一致した）
     alert("ログイン成功！");
     localStorage.setItem('is_admin', 'true');
-    localStorage.setItem('admin_name', data.username);
+    localStorage.setItem('admin_name', data[0].username);
     location.reload(); 
+  } else {
+    // データが0件だった
+    alert("ログイン失敗: IDまたはパスワードが違います");
   }
 }
+
 function handleAdminLogout() {
   localStorage.removeItem('is_admin');
   localStorage.removeItem('admin_name');

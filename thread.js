@@ -127,8 +127,8 @@ async function postReplyInThread(event) {
     return;
   }
 
-  // 2. 自動お掃除（最新50件だけ残す）
-  const MAX_RES = 50; 
+  // 2. 自動お掃除（最新20件だけ残す）
+  const MAX_RES = 20; 
   const { data: currentPosts } = await supabaseClient
     .from('posts')
     .select('id')
