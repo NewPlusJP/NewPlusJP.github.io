@@ -55,31 +55,60 @@ async function loadSingleThread() {
   // ...
 }
 
-// 3. レス表示（通信エラーに強くする）
+// 3. レス表示（エラーハンドリング強化版）
 async function loadPostsInThread() {
   const postList = document.getElementById('res-list');
-  if (!postList) return;
+  if (!postList || !currentThreadData) return;
 
-  // 読み込み開始の合図
-  postList.style.opacity = "0.5"; 
+  // 読み込み中であることを伝える
+  postList.innerHTML = '<div style="color:#666; font-size:0.9em; padding:10px;">データを取得中... (通信が悪いと時間がかかります)</div>';
 
-  const { data: posts, error } = await supabaseClient
-    .from('posts')
-    .select('*')
-    .eq('thread_id', threadId)
-    .order('id', { ascending: false })
-    .limit(20);
+  try {
+    const { data: posts, error } = await supabaseClient
+      .from('posts')
+      .select('*')
+      .eq('thread_id', threadId)
+      .order('id', { ascending: false })
+      .limit(20);
 
-  if (error) {
-    console.error("取得失敗:", error);
-    postList.innerHTML = `<div style="padding:10px; color:#666; font-size:0.8em;">⚠️ 通信が不安定です。電波の良い場所で自動更新を待つか、再読み込みしてください。</div>` + postList.innerHTML;
-    postList.style.opacity = "1";
-    return;
+    if (error) throw error; // エラーがあれば下の catch に飛ばす
+
+    const displayArray = [...(posts || [])];
+    displayArray.push({
+      name: currentThreadData.name,
+      content: currentThreadData.content,
+      created_at: currentThreadData.created_at,
+      user_id_display: "OWNER",
+      is_owner: true,
+      is_admin_only: false
+    });
+
+    // 正常に取得できた場合のみ表示を更新
+    postList.innerHTML = displayArray.map((post) => {
+      const isAdminUser = (post.user_id_display === "ADMIN");
+      const isSecretMode = post.is_admin_only === true; 
+      const specialStyle = isSecretMode ? 'background:#fff9e6; border-left:5px solid #ff4757; padding:10px; border-radius:5px;' : 'padding:10px; border-bottom:1px solid #eee;';
+      const adminLabel = isSecretMode ? '<span style="color:#ff4757; font-weight:bold;">【運営からのお知らせ】</span>' : '';
+      
+      return `
+        <div style="margin-bottom: 10px; ${specialStyle}">
+          <span style="color:${post.is_owner ? '#ff0000' : 'green'}; font-weight:bold;">${post.name}${isAdminUser ? ' [管理者]' : ''}</span> 
+          <small>：${new Date(post.created_at).toLocaleString()} ID:${post.user_id_display}</small>
+          <div style="margin-top:8px; white-space:pre-wrap;">${adminLabel}${post.content}</div>
+        </div>
+      `;
+    }).join('');
+
+  } catch (err) {
+    console.error("通信エラー:", err);
+    // エラーが起きたら「再試行ボタン」を出す
+    postList.innerHTML = `
+      <div style="background:#fff0f0; padding:15px; border-radius:10px; border:1px solid #ffcccc;">
+        <p style="color:#cc0000; margin:0;">通信に失敗しました (Wi-Fiが弱いかも？)</p>
+        <button onclick="loadPostsInThread()" style="margin-top:10px; padding:5px 15px; cursor:pointer;">再読み込みを試す</button>
+      </div>
+    `;
   }
-
-  // --- (ここから下の表示処理は前と同じ) ---
-  postList.style.opacity = "1";
-  // ... map処理など ...
 }
 
 // --- 4. 投稿（DBにフラグを正しく送る） ---
