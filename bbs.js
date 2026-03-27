@@ -93,8 +93,8 @@ async function postReply(event, threadId) {
   if (error) {
     alert("書き込み失敗: " + error.message);
   } else {
-    contentInput.value = "";
-    loadPosts(threadId); // そのスレのレス欄だけ更新
+    contentInput.value = ""; // 入力欄を空にする
+    loadPosts(threadId);    // そのスレのレス欄だけ更新
   }
 }
 
@@ -121,5 +121,5 @@ if (threadForm) {
   });
 }
 
-// 起動時に実行
+// 起動時にスレッド読み込み
 window.onload = loadThreads;
