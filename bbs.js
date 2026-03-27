@@ -81,21 +81,29 @@ if (threadForm) {
   });
 }
 
-// --- 5. 管理者認証 (ログイン・ログアウト・状態確認) ---
 async function handleAdminLogin() {
   const user = document.getElementById('admin-user').value;
   const pass = document.getElementById('admin-pass').value;
-  const { data } = await supabaseClient.from('admin_users').select('*').eq('username', user).eq('password_hash', pass).single();
-  
-  if (data) {
+
+  console.log("ログイン試行:", user); // デバッグ用
+
+  const { data, error } = await supabaseClient
+    .from('admin_users')
+    .select('*')
+    .eq('username', user)
+    .eq('password_hash', pass)
+    .single();
+
+  if (error) {
+    console.error("ログインエラー:", error.message);
+    alert("ログイン失敗: IDまたはパスワードが違います");
+  } else if (data) {
+    alert("ログイン成功！");
     localStorage.setItem('is_admin', 'true');
     localStorage.setItem('admin_name', data.username);
     location.reload(); 
-  } else {
-    alert("ログイン失敗");
   }
 }
-
 function handleAdminLogout() {
   localStorage.removeItem('is_admin');
   localStorage.removeItem('admin_name');
