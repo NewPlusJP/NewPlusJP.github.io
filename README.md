@@ -5,7 +5,6 @@
   <title>NewPlusJP</title>
   <meta name="description" content="NewPlusJPの掲示板だよ！">
   <link rel="stylesheet" href="style.css">
-
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -24,13 +23,14 @@
       <a href="https://Rousoku740.github.io/New">詳しくはこちらから</a></p>
     </div>
 
-    <section id="apply-section">
+
+ <section id="apply-section">
       <div id="onecolor">
         <h2>同盟への加入申請</h2>
       </div>
       <p>必要事項を記入して送信してください。管理者にメールが届きます！</p>
       
-      <form id="contact-form" method="POST">
+  <form id="contact-form" method="POST">
         <div class="form-group-inner">
           <label for="discord-name">Discordユーザー名:</label><br>
           <input type="text" id="discord-name" name="discord-name" placeholder="Name#0000" required>
@@ -43,6 +43,21 @@
       </form>
     </section>
   </div>
+
+  <section class="aa" id="admin-section">
+      <div id="onecolor"><h2>管理者メニュー</h2></div>
+      
+   <div id="admin-auth-inputs">
+        <input type="text" id="admin-user" placeholder="管理者ID" style="width: 150px;">
+        <input type="password" id="admin-pass" placeholder="パスワード" style="width: 150px;">
+        <button onclick="handleAdminLogin()" class="submit-btn" style="padding: 5px 15px;">ログイン</button>
+      </div>
+
+   <div id="admin-console" style="display:none;">
+        <p>管理者：<strong id="admin-name"></strong> としてログイン中</p>
+        <button onclick="handleAdminLogout()" class="submit-btn" style="background-color: #e74c3c;">ログアウト</button>
+      </div>
+    </section>
 
   <section class="aa">
     <div id="onecolor">
@@ -59,23 +74,23 @@
     </div>
     <p>新しい話題を投稿しましょう。画像などはDiscordへ！</p>
 
-    <form id="thread-form">
+<form id="thread-form">
       <div class="form-group-inner">
         <label for="thread-title">スレッドタイトル</label>
         <input type="text" id="thread-title" placeholder="タイトルを入力してください" required>
       </div>
 
-      <div class="form-group-inner">
+   <div class="form-group-inner">
         <label for="user-name">名前（省略可）</label>
         <input type="text" id="user-name" placeholder="名無しさん">
       </div>
 
-      <div class="form-group-inner">
+   <div class="form-group-inner">
         <label for="content">本文</label>
         <textarea id="content" rows="8" placeholder="ここに内容を書き込んでください" required></textarea>
       </div>
 
-      <button type="submit" class="submit-btn">スレッドを作成する</button>
+   <button type="submit" class="submit-btn">スレッドを作成する</button>
     </form>
   </section>
 
@@ -88,15 +103,5 @@
       document.getElementById('contact-form').action = "https://formspree.io/f/" + FORMSPREE_ID;
     }
   </script>
-
-  <section class="aa">
-    <div id="onecolor">
-      <h2>スレッド一覧</h2>
-    </div>
-    <div id="thread-container">
-      <p>読み込み中...</p>
-    </div>
-  </section>
-
 </body>
 </html>

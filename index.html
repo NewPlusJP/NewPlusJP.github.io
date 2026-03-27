@@ -5,7 +5,6 @@
   <title>NewPlusJP</title>
   <meta name="description" content="NewPlusJPの掲示板だよ！">
   <link rel="stylesheet" href="style.css">
-
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -23,6 +22,7 @@
       交流をメインとした同盟です！<br>
       <a href="https://Rousoku740.github.io/New">詳しくはこちらから</a></p>
     </div>
+
 
     <section id="apply-section">
       <div id="onecolor">
@@ -44,6 +44,21 @@
     </section>
   </div>
 
+      <section class="aa" id="admin-section">
+      <div id="onecolor"><h2>管理者メニュー</h2></div>
+      
+      <div id="admin-auth-inputs">
+        <input type="text" id="admin-user" placeholder="管理者ID" style="width: 150px;">
+        <input type="password" id="admin-pass" placeholder="パスワード" style="width: 150px;">
+        <button onclick="handleAdminLogin()" class="submit-btn" style="padding: 5px 15px;">ログイン</button>
+      </div>
+
+      <div id="admin-console" style="display:none;">
+        <p>管理者：<strong id="admin-name"></strong> としてログイン中</p>
+        <button onclick="handleAdminLogout()" class="submit-btn" style="background-color: #e74c3c;">ログアウト</button>
+      </div>
+    </section>
+
   <section class="aa">
     <div id="onecolor">
       <h2>スレッド一覧</h2>
@@ -52,21 +67,6 @@
       <p>読み込み中...</p>
     </div>
   </section>
-
-<section class="aa" id="auth-section">
-  <div id="onecolor"><h2>ユーザー登録 / ログイン</h2></div>
-  <p>名前とパスワードを決めて入力してください（メアド不要）。</p>
-  <div id="auth-inputs">
-    <input type="text" id="auth-username" placeholder="ユーザー名">
-    <input type="password" id="auth-password" placeholder="パスワード">
-    <button onclick="handleRegister()" class="submit-btn">新規登録</button>
-    <button onclick="handleLogin()" class="submit-btn">ログイン</button>
-  </div>
-  <div id="user-info" style="display:none;">
-    <p>ログイン中: <strong id="current-user-name"></strong> さん</p>
-    <button onclick="handleLogout()" class="submit-btn">ログアウト</button>
-  </div>
-</section>
 
   <section class="aa" id="create-thread">
     <div id="onecolor">
@@ -103,15 +103,5 @@
       document.getElementById('contact-form').action = "https://formspree.io/f/" + FORMSPREE_ID;
     }
   </script>
-
-  <section class="aa">
-    <div id="onecolor">
-      <h2>スレッド一覧</h2>
-    </div>
-    <div id="thread-container">
-      <p>読み込み中...</p>
-    </div>
-  </section>
-
 </body>
 </html>
