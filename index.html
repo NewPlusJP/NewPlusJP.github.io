@@ -79,6 +79,33 @@
   });
 </script>
 
+<script>
+async function handleAdminLogin() {
+  const nameInput = document.getElementById('admin-user');
+  const passInput = document.getElementById('admin-pass');
+  if(!nameInput || !passInput) return;
+
+  const name = nameInput.value.trim();
+  const pass = passInput.value.trim();
+
+  const { data, error } = await supabaseClient
+    .from('user_accounts')
+    .select('*')
+    .eq('username', name)
+    .eq('password', pass)
+    .maybeSingle();
+
+  if (data && name.startsWith('admin')) {
+    alert("管理者認証成功！");
+    localStorage.setItem('is_admin', 'true');
+    localStorage.setItem('admin_name', name);
+    location.reload();
+  } else {
+    alert("認証失敗");
+  }
+}
+</script>
+
   <section class="aa" id="create-thread">
     <div id="onecolor">
       <h2>新規スレッドを作成する</h2>
