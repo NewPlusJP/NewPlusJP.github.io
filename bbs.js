@@ -1,11 +1,11 @@
-// --- config.jsの内容 ---
+// --- 1. 設定と初期化 ---
 const SUPABASE_URL = 'https://ezishztrukqnrqsvaeur.supabase.co'; 
 const SUPABASE_ANON_KEY = 'sb_publishable_BA9fejewdKLR7e_WfyBNyQ_2x0Mtrx9';
 
 const { createClient } = window.supabase; 
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// 2. スレッド一覧を表示
+// --- 2. スレッド一覧を表示 ---
 async function loadThreads() {
   const container = document.getElementById('thread-container');
   if (!container) return;
@@ -22,11 +22,16 @@ async function loadThreads() {
 
   const isAdmin = localStorage.getItem('is_admin') === 'true';
 
+  if (!threads || threads.length === 0) {
+    container.innerHTML = '<p>まだスレッドがありません。</p>';
+    return;
+  }
+
   container.innerHTML = threads.map(thread => `
     <div class="aa" id="thread-card-${thread.id}">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <h3 style="color: #ff0000; margin: 0;">${thread.title}</h3>
-        ${isAdmin ? `<button onclick="deleteThread(${thread.id})" style="color:red; cursor:pointer; background:none; border:1px solid red; border-radius:4px;">スレごと削除 🗑️</button>` : ''}
+        ${isAdmin ? `<button onclick="deleteThread(${thread.id})" style="color:red; cursor:pointer; background:none; border:1px solid red; border-radius:4px; padding:2px 5px;">スレごと削除 🗑️</button>` : ''}
       </div>
       <div class="res-meta">
         1 ：<span class="res-name" style="color: green; font-weight: bold;">${thread.name}</span>：${new Date(thread.created_at).toLocaleString()}
@@ -47,9 +52,11 @@ async function loadThreads() {
   threads.forEach(thread => loadPosts(thread.id));
 }
 
-// 3. レスを表示
+// --- 3. レスを表示 ---
 async function loadPosts(threadId) {
   const postContainer = document.getElementById(`res-list-${threadId}`);
+  if (!postContainer) return;
+
   const { data: posts, error } = await supabaseClient
     .from('posts')
     .select('*')
@@ -74,41 +81,37 @@ async function loadPosts(threadId) {
   `).join('');
 }
 
-// --- ★削除用関数を追加 ---
-
-// スレッド削除
+// --- 4. 削除機能 ---
 async function deleteThread(id) {
-  if (!confirm("このスレッドを完全に削除しますか？内のレスも消えます。")) return;
-  
-  // まず関連するレスを削除
+  if (!confirm("スレッドを削除しますか？")) return;
   await supabaseClient.from('posts').delete().eq('thread_id', id);
-  // スレッドを削除
   const { error } = await supabaseClient.from('threads').delete().eq('id', id);
-  
-  if (error) alert("削除失敗: " + error.message);
+  if (error) alert(error.message);
   else loadThreads();
 }
 
-// レス削除
 async function deletePost(postId, threadId) {
-  if (!confirm("このレスを削除しますか？")) return;
+  if (!confirm("レスを削除しますか？")) return;
   const { error } = await supabaseClient.from('posts').delete().eq('id', postId);
-  
-  if (error) alert("削除失敗: " + error.message);
+  if (error) alert(error.message);
   else loadPosts(threadId);
 }
 
-// 4. レス投稿
+// --- 5. 投稿機能 ---
 async function postReply(event, threadId) {
   event.preventDefault(); 
   const nameInput = document.getElementById(`res-name-${threadId}`);
   const contentInput = document.getElementById(`res-content-${threadId}`);
-  const { error } = await supabaseClient.from('posts').insert([{ thread_id: threadId, name: nameInput.value || "名無しさん", content: contentInput.value }]);
+  const { error } = await supabaseClient.from('posts').insert([{ 
+    thread_id: threadId, 
+    name: nameInput.value || "名無しさん", 
+    content: contentInput.value 
+  }]);
   if (error) alert(error.message);
   else { contentInput.value = ""; loadPosts(threadId); }
 }
 
-// 5. スレ立て
+// --- 6. スレ立て機能 ---
 const threadForm = document.getElementById('thread-form');
 if (threadForm) {
   threadForm.addEventListener('submit', async function(e) {
@@ -122,16 +125,19 @@ if (threadForm) {
   });
 }
 
-// 6. 管理者ログイン・ログアウト
+// --- 7. 管理者認証 ---
 async function handleAdminLogin() {
   const user = document.getElementById('admin-user').value;
   const pass = document.getElementById('admin-pass').value;
-  const { data } = await supabaseClient.from('admin_users').select('*').eq('username', user).eq('password_hash', pass).single();
+  const { data, error } = await supabaseClient.from('admin_users').select('*').eq('username', user).eq('password_hash', pass).single();
+  
   if (data) {
     localStorage.setItem('is_admin', 'true');
     localStorage.setItem('admin_name', data.username);
     location.reload(); 
-  } else { alert("失敗"); }
+  } else {
+    alert("ログイン失敗。IDまたはパスワードが違います。");
+  }
 }
 
 function handleAdminLogout() {
@@ -151,6 +157,7 @@ function checkAdminStatus() {
   }
 }
 
+// --- 8. 実行 ---
 document.addEventListener('DOMContentLoaded', () => {
   loadThreads();
   checkAdminStatus();
