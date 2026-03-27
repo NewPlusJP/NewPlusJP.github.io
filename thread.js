@@ -27,7 +27,7 @@ async function loadSingleThread() {
 
   const { data: thread, error } = await supabaseClient
     .from('threads')
-    .select('*')
+    .select('id, title, name, content, created_at')
     .eq('id', threadId)
     .maybeSingle();
 
@@ -36,17 +36,15 @@ async function loadSingleThread() {
     return;
   }
 
-  // 保存されている名前を取得
   const savedName = localStorage.getItem('user_display_name') || "";
 
-  // フォームを一番上に配置
   container.innerHTML = `
     <div class="aa">
       <h2 style="color: #ff0000; margin-bottom: 5px;">${thread.title}</h2>
       
       <div style="background: #f0f0f0; padding: 20px; border-radius: 20px; border: 1px solid #ccc; margin-bottom: 20px;">
         <h3 style="margin-top:0;">レスを書き込む</h3>
-        <form onsubmit="postReplyInThread(event)">
+        <form id="reply-form">
           <input type="text" id="res-name" placeholder="名前" value="${savedName}" style="width: 200px; padding: 8px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 5px;"><br>
           <textarea id="res-content" placeholder="内容を入力" required style="width: 95%; height: 80px; padding: 10px; border-radius: 10px; border: 1px solid #ddd;"></textarea><br>
           <button type="submit" class="submit-btn" style="padding: 8px 25px; margin-top:10px;">書き込む</button>
@@ -59,15 +57,19 @@ async function loadSingleThread() {
     </div>
   `;
 
+  // フォームのイベントリスナーを設定
+  document.getElementById('reply-form').addEventListener('submit', (e) => postReplyInThread(e, thread));
+  
   loadPostsInThread(thread); 
 }
 
-// 3. レス表示（管理者バッジ対応）
+// 3. レス表示
 async function loadPostsInThread(threadData) {
   const postList = document.getElementById('res-list');
+  
   const { data: posts } = await supabaseClient
     .from('posts')
-    .select('*')
+    .select('id, name, content, created_at, user_id_display')
     .eq('thread_id', threadId)
     .order('id', { ascending: false });
 
@@ -83,10 +85,8 @@ async function loadPostsInThread(threadData) {
 
   postList.innerHTML = displayArray.map((post) => {
     const isOwner = post.is_owner;
-    // IDがADMINならバッジを表示
     const isAdmin = (post.user_id_display === "ADMIN");
     const adminBadge = isAdmin ? '<span style="background:#ff4757; color:white; padding:2px 8px; border-radius:10px; font-size:0.75em; margin-left:5px; vertical-align:middle;">管理者</span>' : '';
-    
     const nameColor = isOwner ? "#ff0000" : "green";
     
     return `
@@ -99,27 +99,49 @@ async function loadPostsInThread(threadData) {
   }).join('');
 }
 
-// 4. 投稿 ＆ 名前保存
-async function postReplyInThread(event) {
+// 4. 投稿（リロードなし）
+async function postReplyInThread(event, threadData) {
   event.preventDefault();
+  
   const nameInput = document.getElementById('res-name');
   const contentInput = document.getElementById('res-content');
+  const submitBtn = event.target.querySelector('.submit-btn');
   
   const nameToSave = nameInput.value || "名無しさん";
+  const contentValue = contentInput.value;
+  if (!contentValue.trim()) return;
+
   localStorage.setItem('user_display_name', nameToSave);
 
-  // ★管理者ログイン中ならIDを ADMIN に固定する
   const isAdminLoggedIn = localStorage.getItem('is_admin') === 'true';
   const myID = isAdminLoggedIn ? "ADMIN" : generateID();
 
-  await supabaseClient.from('posts').insert([{
+  submitBtn.disabled = true;
+  submitBtn.innerText = "送信中...";
+
+  const { error } = await supabaseClient.from('posts').insert([{
     thread_id: threadId,
     name: nameToSave,
-    content: contentInput.value,
+    content: contentValue,
     user_id_display: myID
   }]);
 
-  // お掃除ロジック（最新20件）
+  if (error) {
+    alert("エラー: " + error.message);
+  } else {
+    contentInput.value = "";
+    // 表示を更新
+    await loadPostsInThread(threadData);
+    // バックグラウンドでお掃除
+    cleanOldPosts();
+  }
+
+  submitBtn.disabled = false;
+  submitBtn.innerText = "書き込む";
+}
+
+// お掃除ロジックの分離
+async function cleanOldPosts() {
   const { data: allPosts } = await supabaseClient
     .from('posts')
     .select('id')
@@ -130,8 +152,6 @@ async function postReplyInThread(event) {
     const idsToDelete = allPosts.slice(20).map(p => p.id);
     await supabaseClient.from('posts').delete().in('id', idsToDelete);
   }
-
-  location.reload(); 
 }
 
 document.addEventListener('DOMContentLoaded', loadSingleThread);
