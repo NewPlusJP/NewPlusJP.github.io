@@ -46,11 +46,24 @@ async function loadSingleThread() {
       
       <div style="background: #f0f0f0; padding: 10px; border: 1px solid #ccc; margin-bottom: 20px;">
         <h3 style="margin-top:0;">レスを書き込む</h3>
-        <form onsubmit="postReplyInThread(event)">
-          <input type="text" id="res-name" placeholder="名前" value="${savedName}" style="width: 200px; padding: 5px; margin-bottom: 5px;"><br>
-          <textarea id="res-content" placeholder="内容を入力" required style="width: 95%; height: 60px; padding: 5px;"></textarea><br>
-          <button type="submit" class="submit-btn" style="padding: 5px 20px; margin-top:5px;">書き込む</button>
-        </form>
+    <form id="thread-form">
+      <div class="form-group-inner">
+        <label for="thread-title">スレッドタイトル</label>
+        <input type="text" id="thread-title" placeholder="タイトルを入力してください" required>
+      </div>
+
+      <div class="form-group-inner">
+        <label for="user-name">名前（省略可）</label>
+        <input type="text" id="user-name" placeholder="名無しさん">
+      </div>
+
+      <div class="form-group-inner">
+        <label for="content">本文</label>
+        <textarea id="content" rows="8" placeholder="ここに内容を書き込んでください" required></textarea>
+      </div>
+
+      <button type="submit" class="submit-btn">スレッドを作成する</button>
+    </form>
       </div>
 
       <div id="res-list">読み込み中...</div>
