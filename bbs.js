@@ -1,8 +1,6 @@
-// --- 1. 初期化 (config.jsで宣言済みならここは不要ですが、念のためチェック) ---
-if (typeof supabaseClient === 'undefined') {
-  var { createClient } = window.supabase;
-  var supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
+// --- 1. 初期化 (config.jsの変数を利用) ---
+// config.js が先に読み込まれている前提です
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- 2. スレッド一覧を表示 ---
 async function loadThreads() {
