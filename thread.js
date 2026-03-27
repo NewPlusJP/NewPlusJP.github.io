@@ -43,7 +43,20 @@ async function loadSingleThread() {
   }
 
   currentThreadData = thread; 
-  const isAdmin = localStorage.getItem('is_admin') === 'true';
+  // loadSingleThread 内のフォーム表示判定 (thread.js)
+const isAdmin = localStorage.getItem('is_admin') === 'true';
+
+// 運営専用スレッド 且つ 自分が管理者じゃないならメッセージだけ出す
+if (thread.is_admin_thread && !isAdmin) {
+  formHTML = `
+    <div style="background:#eee; padding:20px; border-radius:15px; text-align:center; color:#666; border:1px solid #ccc;">
+      <b>📢 お知らせ</b><br>
+      このスレッドは運営専用のため、一般の方は書き込みできません。
+    </div>`;
+} else {
+  // 通常のフォームを表示
+  formHTML = `<form id="reply-form"> ... </form>`;
+}
 
   // もし「運営専用スレッド」ならタイトルにマークをつける
   const adminThreadMark = thread.is_admin_thread ? '<span style="font-size:0.6em; background:#ff4757; color:#fff; padding:2px 5px; border-radius:4px; vertical-align:middle; margin-right:5px;">運営専用</span>' : '';

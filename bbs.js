@@ -8,7 +8,7 @@ async function loadThreads() {
   const { data: threads, error } = await supabaseClient
     .from('threads')
     .select('*')
-    .order('id', { ascending: false });
+    .order('created_at', { ascending: false }); // 基本は新しい順
 
   if (error) {
     container.innerHTML = '<p>エラー: ' + error.message + '</p>';
@@ -22,32 +22,46 @@ async function loadThreads() {
     return;
   }
 
-  container.innerHTML = threads.map(thread => `
-    <div class="aa" id="thread-card-${thread.id}">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h3 style="margin: 0;">
-          <a href="thread.html?id=${thread.id}" style="color: #ff0000; text-decoration: none;">
-            ${thread.title}
-          </a>
-        </h3>
-        ${isAdmin ? `<button onclick="deleteThread(${thread.id})" style="color:red; cursor:pointer; background:none; border:1px solid red; border-radius:4px; padding:2px 5px;">スレごと削除 🗑️</button>` : ''}
+  // ★ ピン留め（運営専用スレ）を一番上に持ってくる並び替え
+  const sortedThreads = [...threads].sort((a, b) => {
+    return (b.is_admin_thread ? 1 : 0) - (a.is_admin_thread ? 1 : 0);
+  });
+
+  container.innerHTML = sortedThreads.map(thread => {
+    // 運営用スレッドのスタイル設定
+    const isSpecial = thread.is_admin_thread === true;
+    const cardStyle = isSpecial ? 'border: 2px solid #ff4757; background: #fff9f9;' : '';
+    const badge = isSpecial ? '<span style="background:#ff4757; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7em; margin-right:8px; vertical-align:middle;">📌 置標 / 運営</span>' : '';
+
+    return `
+      <div class="aa" id="thread-card-${thread.id}" style="${cardStyle}">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0;">
+            ${badge}
+            <a href="thread.html?id=${thread.id}" style="color: ${isSpecial ? '#ff4757' : '#ff0000'}; text-decoration: none;">
+              ${thread.title}
+            </a>
+          </h3>
+          ${isAdmin ? `<button onclick="deleteThread('${thread.id}')" style="color:red; cursor:pointer; background:none; border:1px solid red; border-radius:4px; padding:2px 5px;">スレごと削除 🗑️</button>` : ''}
+        </div>
+        <div class="res-meta">
+          1 ：<span class="res-name">${thread.name}</span>：${new Date(thread.created_at).toLocaleString()}
+        </div>
+        <div class="res-content" style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
+          ${thread.content}
+        </div>
+        <div style="margin-top: 10px;">
+          <a href="thread.html?id=${thread.id}" style="font-size: 0.9em; color: #555;">>> このスレッドを開く</a>
+        </div>
       </div>
-      <div class="res-meta">
-        1 ：<span class="res-name">${thread.name}</span>：${new Date(thread.created_at).toLocaleString()}
-      </div>
-      <div class="res-content" style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
-        ${thread.content}
-      </div>
-      <div style="margin-top: 10px;">
-        <a href="thread.html?id=${thread.id}" style="font-size: 0.9em; color: #555;">>> このスレッドを開く</a>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 // --- 削除機能 ---
 async function deleteThread(id) {
   if (!confirm("完全に削除しますか？")) return;
+  // UUIDの場合は引用符が必要なため文字列として扱う
   await supabaseClient.from('posts').delete().eq('thread_id', id);
   const { error } = await supabaseClient.from('threads').delete().eq('id', id);
   if (error) alert("削除失敗: " + error.message);
@@ -59,65 +73,64 @@ const threadForm = document.getElementById('thread-form');
 if (threadForm) {
   threadForm.addEventListener('submit', async function(e) {
     e.preventDefault();
+    
     const title = document.getElementById('thread-title').value;
     const name = document.getElementById('user-name').value || "名無しさん";
     const content = document.getElementById('content').value;
     
+    // 管理者用チェックボックスの状態を取得
+    const adminThreadCheck = document.getElementById('is-admin-thread');
+    const isAdminThread = adminThreadCheck ? adminThreadCheck.checked : false;
+
     const { data, error } = await supabaseClient
       .from('threads')
-      .insert([{ title, name, content }])
+      .insert([{ 
+        title, 
+        name, 
+        content,
+        is_admin_thread: isAdminThread 
+      }])
       .select(); 
     
-    if (error) alert("失敗: " + error.message);
-    else if (data) window.location.href = `thread.html?id=${data[0].id}`;
+    if (error) {
+      alert("失敗: " + error.message);
+    } else if (data) {
+      alert(isAdminThread ? "運営専用スレッドを作成しました！" : "スレッドを作成しました！");
+      window.location.href = `thread.html?id=${data[0].id}`;
+    }
   });
 }
 
-// --- 管理者ログイン ---
-// スレッド作成ボタンが押された時の処理の中
-async function createThread() {
-  const title = document.getElementById('thread-title').value;
-  const name = document.getElementById('user-name').value || "名無しさん";
-  const content = document.getElementById('content').value;
-
-  // ★ 追加：チェックボックスの状態を取得（管理者じゃない場合は自動で false）
-  const adminThreadCheck = document.getElementById('is-admin-thread');
-  const isAdminThread = adminThreadCheck ? adminThreadCheck.checked : false;
-
-  if (!title || !content) return;
-
-  const { data, error } = await supabaseClient
-    .from('threads')
-    .insert([
-      { 
-        title: title, 
-        name: name, 
-        content: content,
-        is_admin_thread: isAdminThread // ★ ここでDBに送る！
-      }
-    ]);
-
-  if (error) {
-    alert("エラーが発生しました: " + error.message);
-  } else {
-    alert("スレッドを作成しました！");
-    location.reload(); // 一覧を更新
-  }
-}
-
+// --- 管理者ログアウト ---
 function handleAdminLogout() {
   localStorage.removeItem('is_admin');
+  localStorage.removeItem('admin_name');
   location.reload();
 }
 
+// --- 管理者状態チェックとUI更新 ---
 function checkAdminStatus() {
   const isAdmin = localStorage.getItem('is_admin') === 'true';
   const adminConsole = document.getElementById('admin-console');
   const adminInputs = document.getElementById('admin-auth-inputs');
-  if (isAdmin && adminConsole) {
-    adminConsole.style.display = 'block';
+  const optionContainer = document.getElementById('admin-thread-option');
+
+  if (isAdmin) {
+    if (adminConsole) adminConsole.style.display = 'block';
     if (adminInputs) adminInputs.style.display = 'none';
-    document.getElementById('admin-name').innerText = localStorage.getItem('admin_name');
+    const nameEl = document.getElementById('admin-name');
+    if (nameEl) nameEl.innerText = localStorage.getItem('admin_name') || "管理者";
+
+    // スレッド作成フォームに「運営専用」チェックボックスを出す
+    if (optionContainer) {
+      optionContainer.innerHTML = `
+        <div style="margin: 10px 0; padding: 10px; border: 2px dashed #ff4757; border-radius: 10px; background: #fff5f5;">
+          <label style="color: #ff4757; font-weight: bold; cursor: pointer;">
+            <input type="checkbox" id="is-admin-thread"> 📢 運営専用（ピン留め）にする
+          </label>
+        </div>
+      `;
+    }
   }
 }
 
