@@ -22,14 +22,13 @@
       交流をメインとした同盟です！<br>
       <a href="https://Rousoku740.github.io/New">詳しくはこちらから</a></p>
     </div>
-
   </div>
 
-<div class="aa">
-  <h2>利用規約&スレッド一覧</h2>
-  <a href="rule.html" style="font-size: 1.2em; font-weight: bold;">■ 【重要】利用規約</a></br>
-  <a href="threadlist.html" style="font-size: 1.2em; font-weight: bold;">■ 掲示板に入る（スレッド一覧）</a>
-</div>
+  <div class="aa">
+    <h2>利用規約&スレッド一覧</h2>
+    <a href="rule.html" style="font-size: 1.2em; font-weight: bold;">■ 【重要】利用規約</a><br>
+    <a href="threadlist.html" style="font-size: 1.2em; font-weight: bold;">■ 掲示板に入る（スレッド一覧）</a>
+  </div>
 
   <section class="aa" id="admin-section">
     <div id="onecolor"><h2>管理者メニュー</h2></div>
@@ -40,12 +39,11 @@
       <button onclick="handleAdminLogin()" class="submit-btn" style="padding: 5px 15px;">ログイン</button>
     </div>
 
- <div id="admin-console" style="display:none;">
+<div id="admin-console" style="display:none;">
       <p>管理者：<strong id="admin-name"></strong> としてログイン中</p>
       <button onclick="handleAdminLogout()" class="submit-btn" style="background-color: #e74c3c;">ログアウト</button>
     </div>
   </section>
-
 
   <section class="aa" id="create-thread">
     <div id="onecolor">
@@ -59,20 +57,23 @@
         <input type="text" id="thread-title" placeholder="タイトルを入力してください" required>
       </div>
 
- <div class="form-group-inner">
+   <div id="admin-thread-option"></div>
+
+  <div class="form-group-inner">
         <label for="user-name">名前（省略可）</label>
         <input type="text" id="user-name" placeholder="名無しさん">
       </div>
 
-<div class="form-group-inner">
+  <div class="form-group-inner">
         <label for="content">本文</label>
         <textarea id="content" rows="8" placeholder="ここに内容を書き込んでください" required></textarea>
       </div>
 
-<button type="submit" class="submit-btn">スレッドを作成する</button>
+  <button type="submit" class="submit-btn" id="create-btn">スレッドを作成する</button>
     </form>
   </section>
- <section class="aa">
+
+  <section class="aa">
     <div id="onecolor">
       <h2>スレッド一覧</h2>
     </div>

@@ -74,21 +74,34 @@ if (threadForm) {
 }
 
 // --- 管理者ログイン ---
-async function handleAdminLogin() {
-  const user = document.getElementById('admin-user').value.trim();
-  const pass = document.getElementById('admin-pass').value.trim();
-  const { data, error } = await supabaseClient
-    .from('admin_users')
-    .select('*')
-    .eq('username', user)
-    .eq('password_hash', pass);
+// スレッド作成ボタンが押された時の処理の中
+async function createThread() {
+  const title = document.getElementById('thread-title').value;
+  const name = document.getElementById('user-name').value || "名無しさん";
+  const content = document.getElementById('content').value;
 
-  if (data && data.length > 0) {
-    localStorage.setItem('is_admin', 'true');
-    localStorage.setItem('admin_name', data[0].username);
-    location.reload(); 
+  // ★ 追加：チェックボックスの状態を取得（管理者じゃない場合は自動で false）
+  const adminThreadCheck = document.getElementById('is-admin-thread');
+  const isAdminThread = adminThreadCheck ? adminThreadCheck.checked : false;
+
+  if (!title || !content) return;
+
+  const { data, error } = await supabaseClient
+    .from('threads')
+    .insert([
+      { 
+        title: title, 
+        name: name, 
+        content: content,
+        is_admin_thread: isAdminThread // ★ ここでDBに送る！
+      }
+    ]);
+
+  if (error) {
+    alert("エラーが発生しました: " + error.message);
   } else {
-    alert("ログイン失敗");
+    alert("スレッドを作成しました！");
+    location.reload(); // 一覧を更新
   }
 }
 
