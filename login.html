@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>ログイン - NewPlusJP</title>
   <style>
-    /* signup.htmlと同じスタイルでOK */
     body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding-top: 50px; }
     .auth-card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 300px; text-align: center; }
     input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; }
@@ -26,28 +25,47 @@
 
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
-// ここを今送ってくれた長いキーに差し替える
-const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // 正しいキーに差し替え済み
+  const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU";
+  
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   async function handleLogin() {
     const user = document.getElementById('username').value;
     const pass = document.getElementById('password').value;
 
-    const { data, error } = await supabase
-      .from('user_accounts')
-      .select('*')
-      .eq('username', user)
-      .eq('password', pass)
-      .maybeSingle();
+    if (!user || !pass) {
+      alert("ユーザー名とパスワードを入力してね！");
+      return;
+    }
 
-    if (data) {
-      alert("おかえりなさい！");
-      localStorage.setItem('user_display_name', user); // 名前を保存
-      window.location.href = "index.html";
-    } else {
-      alert("名前かパスワードが違います！");
+    try {
+      // ユーザー名とパスワードが一致する行を探す
+      const { data, error } = await supabase
+        .from('user_accounts')
+        .select('*')
+        .eq('username', user)
+        .eq('password', pass)
+        .maybeSingle();
+
+      if (error) {
+        alert("エラーが発生しました: " + error.message);
+        return;
+      }
+
+      if (data) {
+        alert("おかえりなさい、" + user + "さん！");
+        // ブラウザにログイン情報を保存
+        localStorage.setItem('user_display_name', user); 
+        // 掲示板のトップへ移動
+        window.location.href = "index.html";
+      } else {
+        alert("ユーザー名かパスワードが間違っているよ。");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("ログイン中に問題が起きました。");
     }
   }
 </script>

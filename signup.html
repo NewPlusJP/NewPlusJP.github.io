@@ -1,37 +1,13 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>新規登録 - NewPlusJP</title>
-  <style>
-    body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding-top: 50px; }
-    .auth-card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 300px; text-align: center; }
-    input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; }
-    .btn-signup { width: 100%; padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; background: #ff4757; color: white; }
-    .link-text { display: block; margin-top: 15px; font-size: 0.8em; color: #555; }
-  </style>
-</head>
-<body>
-
-<div class="auth-card">
-  <h2>アカウント作成</h2>
-  <input type="text" id="username" placeholder="使いたいユーザー名">
-  <input type="password" id="password" placeholder="パスワード（4文字以上）">
-  <p>アカウントを作成すると利用規約に同意したことになります。</p>
-  <button class="btn-signup" onclick="handleSignUp()">登録する</button>
-  
-  <a href="login.html" class="link-text">すでにアカウントを持っている</a>
-  <a href="index.html" class="link-text">トップに戻る</a>
-</div>
-
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
+  // 1. 定数の宣言（各1回ずつにする）
+  const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU";
 
-// ここを今送ってくれた長いキーに差し替える
-const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // 2. クライアントの作成（これ1行だけ！）
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+  // 3. 関数の定義
   async function handleSignUp() {
     try {
       const user = document.getElementById('username').value;
@@ -39,8 +15,10 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
       if (!user || !pass) {
         alert("名前とパスワードを入力してください");
-        return; // 関数の中なのでこれは正しい
+        return;
       }
+
+      console.log("登録を試みます:", user); // 動作確認用
 
       // 重複チェック
       const { data: exist, error: checkError } = await supabase
@@ -54,7 +32,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         return;
       }
 
-      // 登録
+      // 登録実行
       const { error: insError } = await supabase
         .from('user_accounts')
         .insert([{ username: user, password: pass }]);
@@ -66,10 +44,8 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         window.location.href = "login.html";
       }
     } catch (e) {
-      console.error(e);
+      console.error("システムエラー:", e);
       alert("予期せぬエラーが発生しました");
     }
-  } // ← 最後までしっかりカッコで囲まれているか確認！
+  }
 </script>
-</body>
-</html>
