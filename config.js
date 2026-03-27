@@ -1,5 +1,4 @@
 const FORMSPREE_ID = "ToSPHVW";
-const API_BASE_URL = "https://your-app.fly.dev/api"; // Fly.ioのURL（例）
 
 // config.js
 const SUPABASE_URL = 'https://ezishztrukqnrqsvaeur.supabase.co'; 
