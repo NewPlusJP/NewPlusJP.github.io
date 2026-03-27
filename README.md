@@ -27,12 +27,12 @@
             margin-bottom: 30px; 
             background: #fafafa;
         }
-    .post-form input, .post-form textarea { 
+        .post-form input, .post-form textarea { 
             width: 100%; 
             margin-bottom: 10px; 
             padding: 8px; 
-       box-sizing: border-box; 
-     }
+            box-sizing: border-box; 
+        }
         .submit-btn { padding: 10px 20px; cursor: pointer; }
 
         /* スレッド一覧の見た目 */
@@ -54,13 +54,12 @@
 
 <div class="aa">
     <h1>スレッド一覧</h1>
-    
-   <div class="nav-links">
+    <div class="nav-links">
         <a href="index.html">トップページ</a>
         <a href="rules.html">利用規約</a>
-    </div>
+   </div>
 
-  <div class="post-form">
+ <div class="post-form">
         <h3>新しくスレッドを立てる</h3>
         <form id="create-thread-form">
             <input type="text" id="t-title" placeholder="スレッドのタイトル" required>
@@ -68,7 +67,7 @@
             <textarea id="t-content" placeholder="最初のカキコミ内容" required rows="4"></textarea>
             <button type="submit" id="submit-btn" class="submit-btn">スレッド作成</button>
         </form>
- </div>
+   </div>
 
    <div id="thread-list">
         読み込み中...
