@@ -22,14 +22,13 @@
       交流をメインとした同盟です！<br>
       <a href="https://Rousoku740.github.io/New">詳しくはこちらから</a></p>
     </div>
-<div class="aa">
-  <h2>公式コミュニティサーバーへのご案内</h2>
-  <p>公式コミュニティサーバーではサイトの<B>アップデート</B>や<B>サイト利用規約</B>など重要な情報を見ることができます。</br>
-  <B>サイト利用規約</B>などといったものはサイトを利用するうえで欠かせないものでありますので必ず参加お願いします。</br>
-  <a href="https://discord.gg/PUtsGTf4YN">参加はこちらから</a></p>
-</div>
 
   </div>
+
+<div class="aa">
+  <h2>利用規約</h2>
+  <a href="rules.html">【重要】利用規約</a>
+</div>
 
   <section class="aa" id="admin-section">
     <div id="onecolor"><h2>管理者メニュー</h2></div>
@@ -85,11 +84,5 @@
   <script src="config.js"></script>
   <script src="bbs.js"></script>
 
-  <script>
-    // Formspreeの設定
-    if (typeof FORMSPREE_ID !== 'undefined') {
-      document.getElementById('contact-form').action = "https://formspree.io/f/" + FORMSPREE_ID;
-    }
-  </script>
 </body>
 </html>
