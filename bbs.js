@@ -8,11 +8,12 @@ function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
-// --- 1. スレッド一覧表示 (修正：運営固定＋新着順) ---
+// --- 1. スレッド一覧表示 (運営固定 + 新着順) ---
 async function loadThreads() {
   const container = document.getElementById('thread-container');
   if (!container || !supabaseClient) return;
 
+  // 最新順（created_at 降順）で取得
   const { data: threads, error } = await supabaseClient
     .from('threads').select('*').order('created_at', { ascending: false });
 
@@ -26,17 +27,10 @@ async function loadThreads() {
     return;
   }
 
-  // ★ここを修正：運営スレを優先しつつ、同じ優先度内では日付順（新着順）を維持する
+  // 運営スレを一番上に、それ以外は取得時の「新着順」を維持
   const sortedThreads = [...threads].sort((a, b) => {
-    // 運営スレかどうかの重み付け
-    const aWeight = a.is_admin_thread ? 1 : 0;
-    const bWeight = b.is_admin_thread ? 1 : 0;
-    
-    if (bWeight !== aWeight) {
-      return bWeight - aWeight; // 運営スレ(1)を通常(0)より上に
-    }
-    // 運営同士、または通常同士の場合は、元の降順（created_at）を維持する
-    return 0; 
+    if (a.is_admin_thread === b.is_admin_thread) return 0;
+    return a.is_admin_thread ? -1 : 1;
   });
 
   container.innerHTML = sortedThreads.map(thread => {
@@ -106,6 +100,10 @@ const threadForm = document.getElementById('thread-form');
 if (threadForm) {
   threadForm.addEventListener('submit', async function(e) {
     e.preventDefault();
+    
+    // ハニーポット（スパム対策）
+    if (document.getElementById('honey-pot').value) return;
+
     const btn = document.getElementById('create-btn');
     const title = document.getElementById('thread-title').value.trim();
     const name = document.getElementById('user-name').value.trim() || "名無しさん";
@@ -130,56 +128,29 @@ if (threadForm) {
   });
 }
 
-function checkAdminStatus() {
-  const isAdmin = localStorage.getItem('is_admin') === 'true';
-  const adminConsole = document.getElementById('admin-console');
-  const adminInputs = document.getElementById('admin-auth-inputs');
-  const optionContainer = document.getElementById('admin-thread-option');
-
-  if (isAdmin) {
-    if (adminConsole) adminConsole.style.display = 'block';
-    if (adminInputs) adminInputs.style.display = 'none';
-    if (optionContainer) {
-      optionContainer.innerHTML = `<label style="color: #ff4757; font-weight: bold;"><input type="checkbox" id="is-admin-thread"> 📢 運営専用（ピン留め）にする</label>`;
-    }
-  }
-}
-
 // --- 4. 通知機能 ---
-function renderNotifyButton() {
-  const adminConsole = document.getElementById('admin-console');
-  if (!adminConsole) return;
+window.toggleNotification = async function() {
+  if (!("Notification" in window)) {
+    alert("このブラウザは通知に対応していません。");
+    return;
+  }
 
-  const btnId = 'notify-toggle-btn';
-  if (document.getElementById(btnId)) return;
+  if (Notification.permission !== "granted") {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return;
+  }
 
-  const notifyBtn = document.createElement('button');
-  notifyBtn.id = btnId;
-  notifyBtn.style = "margin-left:10px; font-size:12px; cursor:pointer; padding:2px 8px; border-radius:4px; border:1px solid #ddd; background:#fff;";
-  adminConsole.appendChild(notifyBtn);
+  const isEnabled = localStorage.getItem('notify_enabled') === 'true';
+  localStorage.setItem('notify_enabled', !isEnabled);
+  updateNotifyButtonStatus();
+};
 
-  notifyBtn.onclick = async () => {
-    if (!("Notification" in window)) {
-      alert("このブラウザは通知に対応していません。");
-      return;
-    }
-    if (Notification.permission !== "granted") {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") return;
-    }
-    const isEnabled = localStorage.getItem('notify_enabled') === 'true';
-    localStorage.setItem('notify_enabled', !isEnabled);
-    updateNotifyButtonText();
-  };
-  updateNotifyButtonText();
-}
-
-function updateNotifyButtonText() {
-  const btn = document.getElementById('notify-toggle-btn');
+function updateNotifyButtonStatus() {
+  const btn = document.getElementById('notify-btn-top');
   if (!btn) return;
   const isEnabled = localStorage.getItem('notify_enabled') === 'true';
-  btn.innerText = isEnabled ? "🔔 通知: オン" : "🔕 通知: オフ";
-  btn.style.backgroundColor = isEnabled ? "#e1ffed" : "#fff5f5";
+  btn.innerText = isEnabled ? "🔔 通知：オン" : "🔕 通知をオンにする";
+  btn.style.backgroundColor = isEnabled ? "#e1ffed" : "#fff";
 }
 
 function startThreadWatch() {
@@ -187,7 +158,7 @@ function startThreadWatch() {
   supabaseClient
     .channel('public:threads_watch')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'threads' }, payload => {
-      loadThreads(); 
+      loadThreads();
       const isEnabled = localStorage.getItem('notify_enabled') === 'true';
       if (isEnabled && Notification.permission === "granted") {
         new Notification("新着スレッド！", { body: payload.new.title });
@@ -196,10 +167,30 @@ function startThreadWatch() {
     .subscribe();
 }
 
-// --- 5. 実行 ---
+// --- 5. 管理者状態チェック ---
+function checkAdminStatus() {
+  const isAdmin = localStorage.getItem('is_admin') === 'true';
+  const adminName = localStorage.getItem('admin_name');
+  const adminConsole = document.getElementById('admin-console');
+  const adminInputs = document.getElementById('admin-auth-inputs');
+  const optionContainer = document.getElementById('admin-thread-option');
+
+  if (isAdmin) {
+    if (adminConsole) {
+      adminConsole.style.display = 'block';
+      document.getElementById('admin-name').innerText = adminName;
+    }
+    if (adminInputs) adminInputs.style.display = 'none';
+    if (optionContainer) {
+      optionContainer.innerHTML = `<label style="color: #ff4757; font-weight: bold;"><input type="checkbox" id="is-admin-thread"> 📢 運営専用（ピン留め）にする</label>`;
+    }
+  }
+}
+
+// 実行開始
 document.addEventListener('DOMContentLoaded', () => {
   loadThreads();
   checkAdminStatus();
-  renderNotifyButton();
+  updateNotifyButtonStatus();
   startThreadWatch();
 });
