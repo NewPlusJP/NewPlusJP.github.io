@@ -3,100 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <title>新規登録 - NewPlusJP</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2" crossorigin="anonymous"></script>
   <style>
-    body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding-top: 50px; }
-    .auth-card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 300px; text-align: center; }
-    input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; }
-    .btn-signup { width: 100%; padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; background: #ff4757; color: white; }
-    .link-text { display: block; margin-top: 15px; font-size: 0.8em; color: #555; text-decoration: none; }
-    .link-text:hover { text-decoration: underline; }
-    .rule-text { font-size: 0.8em; color: #666; margin: 15px 0; line-height: 1.5; }
-    .rule-link { color: #ff4757; text-decoration: none; font-weight: bold; }
-    .rule-link:hover { text-decoration: underline; }
+    body { font-family: sans-serif; display: flex; justify-content: center; padding: 50px; background: #f0f2f5; }
+    .card { background: white; padding: 30px; border-radius: 15px; width: 300px; text-align: center; }
+    input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #ccc; }
+    button { width: 100%; padding: 10px; background: #ff4757; color: white; border: none; border-radius: 5px; cursor: pointer; }
   </style>
 </head>
 <body>
+  <div class="card">
+    <h2>新規登録</h2>
+    <input type="text" id="user" placeholder="ユーザー名">
+    <input type="password" id="pass" placeholder="パスワード">
+    <button id="btn">同意して登録</button>
+    <p><a href="login.html">ログインはこちら</a></p>
+  </div>
 
-<div class="auth-card">
-  <h2>アカウント作成</h2>
-  
-  <input type="text" id="username" placeholder="使いたいユーザー名">
-  <input type="password" id="password" placeholder="パスワード">
+  <script>
+    const config = { url: "https://ezishztrukqnrqsvaeur.supabase.co", key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU" };
+    const supabase = window.supabase.createClient(config.url, config.key);
 
-  <p class="rule-text">
-    アカウントを作成すると<br>
-    <a href="https://newplusjp.github.io/rule" target="_blank" class="rule-link">利用規約</a>
-    に同意したことになります。
-  </p>
-
-  <button class="btn-signup" id="signup-btn">同意して登録する</button>
-  
-  <a href="login.html" class="link-text">すでにアカウントを持っている</a>
-  <a href="index.html" class="link-text">トップに戻る</a>
-</div>
-
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-
-<script>
-  // 1. 設定（二重宣言エラーを防ぐため、ここだけにまとめる）
-  const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU";
-  
-  // 2. クライアント作成
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  // 3. 登録処理を関数として定義
-  async function handleSignUp() {
-    try {
-      const userEl = document.getElementById('username');
-      const passEl = document.getElementById('password');
-      const user = userEl.value.trim();
-      const pass = passEl.value.trim();
-
-      if (!user || !pass) {
-        alert("名前とパスワードを入力してください");
-        return;
-      }
-
-      console.log("登録チェック開始:", user);
+    document.getElementById('btn').onclick = async () => {
+      const u = document.getElementById('user').value.trim();
+      const p = document.getElementById('pass').value.trim();
+      if(!u || !p) return alert("入力してね");
 
       // 重複チェック
-      const { data: exist, error: checkError } = await supabase
-        .from('user_accounts')
-        .select('username')
-        .eq('username', user)
-        .maybeSingle();
+      const { data: exist } = await supabase.from('user_accounts').select('username').eq('username', u).maybeSingle();
+      if(exist) return alert("その名前は使われています");
 
-      if (checkError) {
-        console.error("チェックエラー:", checkError);
-      }
-
-      if (exist) {
-        alert("その名前はすでに使われています");
-        return;
-      }
-
-      // 登録実行
-      const { error: insError } = await supabase
-        .from('user_accounts')
-        .insert([{ username: user, password: pass }]);
-
-      if (insError) {
-        alert("登録エラー: " + insError.message);
-      } else {
-        alert("登録完了！ログイン画面へ移動します");
-        window.location.href = "login.html";
-      }
-
-    } catch (e) {
-      console.error("システムエラー:", e);
-      alert("予期せぬエラーが発生しました");
-    }
-  }
-
-  // 4. ボタンにイベントを割り当てる（HTMLのonclickより確実）
-  document.getElementById('signup-btn').addEventListener('click', handleSignUp);
-</script>
-
+      // 登録
+      const { error } = await supabase.from('user_accounts').insert([{ username: u, password: p }]);
+      if(error) alert("エラー: " + error.message);
+      else { alert("登録完了！"); window.location.href = "login.html"; }
+    };
+  </script>
 </body>
 </html>

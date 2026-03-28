@@ -3,85 +3,43 @@
 <head>
   <meta charset="UTF-8">
   <title>ログイン - NewPlusJP</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2" crossorigin="anonymous"></script>
   <style>
-    body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding-top: 50px; }
-    .auth-card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 300px; text-align: center; }
-    input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; }
-    .btn-login { width: 100%; padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; background: #2ed573; color: white; }
-    .link-text { display: block; margin-top: 15px; font-size: 0.8em; color: #555; text-decoration: none; }
-    .link-text:hover { text-decoration: underline; }
+    body { font-family: sans-serif; display: flex; justify-content: center; padding: 50px; background: #f0f2f5; }
+    .card { background: white; padding: 30px; border-radius: 15px; width: 300px; text-align: center; }
+    input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #ccc; }
+    button { width: 100%; padding: 10px; background: #2ed573; color: white; border: none; border-radius: 5px; cursor: pointer; }
   </style>
 </head>
 <body>
+  <div class="card">
+    <h2>ログイン</h2>
+    <input type="text" id="user" placeholder="ユーザー名">
+    <input type="password" id="pass" placeholder="パスワード">
+    <button id="btn">ログイン</button>
+    <p><a href="signup.html">新規登録はこちら</a></p>
+  </div>
 
-<div class="auth-card">
-  <h2>ログイン</h2>
-  <input type="text" id="username" placeholder="ユーザー名">
-  <input type="password" id="password" placeholder="パスワード">
-  <button class="btn-login" id="login-btn">ログインする</button>
-  
-  <a href="signup.html" class="link-text">新しくアカウントを作る</a>
-  <a href="index.html" class="link-text">トップに戻る</a>
-</div>
+  <script>
+    const config = { url: "https://ezishztrukqnrqsvaeur.supabase.co", key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU" };
+    const supabase = window.supabase.createClient(config.url, config.key);
 
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    document.getElementById('btn').onclick = async () => {
+      const u = document.getElementById('user').value.trim();
+      const p = document.getElementById('pass').value.trim();
 
-<script>
-  const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU";
-  
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  async function handleLogin() {
-    const user = document.getElementById('username').value.trim();
-    const pass = document.getElementById('password').value.trim();
-
-    if (!user || !pass) {
-      alert("ユーザー名とパスワードを入力してね！");
-      return;
-    }
-
-    try {
-      // 1. ユーザー名とパスワードが一致する行を探す (テーブル名を引用符で囲む！)
-      const { data, error } = await supabase
-        .from('user_accounts')
-        .select('*')
-        .eq('username', user)
-        .eq('password', pass)
-        .maybeSingle();
-
-      if (error) {
-        alert("エラーが発生しました: " + error.message);
-        return;
-      }
-
-      if (data) {
-        alert("おかえりなさい、" + user + "さん！");
-        
-        // 2. ログイン情報を保存
-        localStorage.setItem('user_display_name', user); 
-
-        // 3. ★管理者フラグの判定 (名前がadminで始まれば管理者)
-        if (user.startsWith('admin')) {
-          localStorage.setItem('is_admin', 'true');
-          localStorage.setItem('admin_name', user);
-        } else {
-          localStorage.setItem('is_admin', 'false');
-        }
-
-        // 4. 掲示板のトップへ移動
+      const { data, error } = await supabase.from('user_accounts').select('*').eq('username', u).eq('password', p).maybeSingle();
+      
+      if(data) {
+        localStorage.setItem('user_display_name', u);
+        localStorage.setItem('is_admin', u.toLowerCase().startsWith('admin') ? 'true' : 'false');
+        if(u.toLowerCase().startsWith('admin')) localStorage.setItem('admin_name', u);
+        alert("ログイン成功！");
         window.location.href = "index.html";
       } else {
-        alert("ユーザー名かパスワードが間違っているよ。");
+        alert("名前かパスワードが違います");
       }
-    } catch (err) {
-      console.error(err);
-      alert("ログイン中に問題が起きました。");
-    }
-  }
-
-  // ボタンにイベントを割り当てる
-  document.getElementById('login-btn').addEventListener('click', handleLogin);
-</script>
+    };
+  </script>
 </body>
 </html>
