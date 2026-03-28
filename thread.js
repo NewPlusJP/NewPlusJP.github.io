@@ -14,13 +14,15 @@ function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
-// --- 1. メイン読み込み ---
+// --- 1. メイン読み込み & UI生成 ---
 async function loadEverything() {
+  // main要素を取得
   const mainContainer = document.getElementById('single-thread-container');
   if (!mainContainer || !supabaseClient || !threadId) return;
 
+  // データの取得（スレッド本体 + レス）
   const [tRes, pRes] = await Promise.all([
-    supabaseClient.from('threads').select('*').eq('id', threadId).single(),
+    supabaseClient.from('threads').select('*').eq('id', threadId).maybeSingle(),
     supabaseClient.from('posts').select('*').eq('thread_id', threadId).order('created_at', { ascending: true })
   ]);
 
@@ -32,7 +34,10 @@ async function loadEverything() {
   const thread = tRes.data;
   const posts = pRes.data || [];
 
+  // ② UIの組み立て（通知ボタン・フォーム・投稿一覧を全部作る）
+  // ここで res-list というIDも作っておくことで、HTML側のエラーを回避します
   let html = `
+    <div id="res-list" style="display:none;">読み込み済み</div>
     <div class="aa" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
       <h2 style="margin:0; font-size:1.4em;">${escapeHTML(thread.title)}</h2>
       <button id="notify-toggle-btn" onclick="toggleNotification()" style="white-space:nowrap; cursor:pointer; padding:6px 12px; border-radius:20px; border:1px solid #ddd; background:#fff; font-size:12px; font-weight:bold;">
@@ -67,55 +72,50 @@ async function loadEverything() {
   `).join('');
 
   html += `</div>`;
+  
+  // HTMLを反映
   mainContainer.innerHTML = html;
 
   setupFormListener();
   updateNotifyBtnStatus();
 }
 
-// --- 2. 書き込み処理 ---
+// --- 2. 書き込み & リアルタイム監視 ---
 function setupFormListener() {
   const form = document.getElementById('post-form');
   if (!form) return;
   form.onsubmit = async (e) => {
     e.preventDefault();
     const btn = document.getElementById('post-submit-btn');
-    const name = document.getElementById('user-name').value.trim() || "名無しさん";
     const content = document.getElementById('post-content').value.trim();
-    if (!content) return;
+    if (!content || btn.disabled) return;
 
     btn.disabled = true;
-    await supabaseClient.from('posts').insert([{ thread_id: threadId, name, content }]);
+    await supabaseClient.from('posts').insert([{ 
+      thread_id: threadId, 
+      name: document.getElementById('user-name').value.trim() || "名無しさん", 
+      content 
+    }]);
     document.getElementById('post-content').value = "";
     btn.disabled = false;
   };
 }
 
-// --- 3. リアルタイム監視 (復活！) ---
 function startWatching() {
   if (!supabaseClient || !threadId) return;
-
-  supabaseClient
-    .channel('posts_realtime')
+  supabaseClient.channel(`thread_view_${threadId}`)
     .on('postgres_changes', { 
       event: 'INSERT', 
       schema: 'public', 
       table: 'posts', 
       filter: `thread_id=eq.${threadId}` 
-    }, (payload) => {
-      // 新しい投稿が来たら再読み込みして表示を更新
-      loadEverything();
-      
-      // 通知用
-      const isEnabled = localStorage.getItem('notify_enabled') === 'true';
-      if (isEnabled && Notification.permission === "granted") {
-        new Notification("新着レス！", { body: payload.new.content });
-      }
+    }, () => {
+      loadEverything(); // 自動更新
     })
     .subscribe();
 }
 
-// --- 4. 通知設定 ---
+// --- 3. 通知機能 ---
 window.toggleNotification = async function() {
   if (Notification.permission !== "granted") await Notification.requestPermission();
   const isEnabled = localStorage.getItem('notify_enabled') === 'true';
