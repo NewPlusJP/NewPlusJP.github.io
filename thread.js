@@ -9,6 +9,20 @@ const urlParams = new URLSearchParams(window.location.search);
 const threadId = urlParams.get('id');
 let currentThreadData = null;
 
+// --- 【重要】エスケープ関数 ---
+function escapeHTML(str) {
+    if (!str) return "";
+    return String(str).replace(/[&<>"']/g, function(m) {
+        return {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[m];
+    });
+}
+
 // --- 2. 起動処理 ---
 async function init() {
     const container = document.getElementById('single-thread-container');
@@ -38,12 +52,11 @@ async function init() {
         renderPage(thread);
         await loadPosts();
 
-        // 通知が許可されていれば監視を開始（実際の通知はisEnabledで判定）
         if (Notification.permission === "granted") {
             startRealtimeMonitor();
         }
     } catch (e) {
-        container.innerHTML = "接続エラー: " + e.message;
+        container.innerHTML = "接続エラー: " + escapeHTML(e.message);
     }
 }
 
@@ -52,15 +65,21 @@ function renderPage(thread) {
     const container = document.getElementById('single-thread-container');
     const isAdmin = localStorage.getItem('is_admin') === 'true';
 
+    // タイトルのエスケープ
+    const safeTitle = escapeHTML(thread.title);
+
     let formHTML = '';
     if (thread.is_admin_thread && !isAdmin) {
         formHTML = `<div style="background:#eee; padding:15px; text-align:center; margin-bottom:20px;">📢 運営専用スレッドです</div>`;
     } else {
         const adminToggle = isAdmin ? `<label style="color:#ff4757; font-size:12px;"><input type="checkbox" id="admin-mode"> 管理者として投稿</label><br>` : '';
+        // ユーザー表示名の取得とエスケープ
+        const savedDisplayName = escapeHTML(localStorage.getItem('user_display_name') || '');
+        
         formHTML = `
             <div style="background:#f4f4f4; padding:15px; border:1px solid #ccc; margin-bottom:20px; border-radius:10px;">
                 <form id="reply-form">
-                    <input type="text" id="res-name" value="${localStorage.getItem('user_display_name') || ''}" placeholder="名前" style="margin-bottom:5px;"><br>
+                    <input type="text" id="res-name" value="${savedDisplayName}" placeholder="名前" style="margin-bottom:5px;"><br>
                     ${adminToggle}
                     <textarea id="res-content" placeholder="内容を入力してください" required style="width:95%; height:60px; margin-top:5px;"></textarea><br>
                     <button type="submit" id="submit-btn" style="margin-top:5px; padding:5px 20px;">書き込む</button>
@@ -78,7 +97,7 @@ function renderPage(thread) {
     container.innerHTML = `
         <div class="aa">
             <h2 style="color:${thread.is_admin_thread ? '#ff4757' : 'inherit'}; border-bottom:2px solid #ddd; padding-bottom:5px;">
-                ${thread.is_admin_thread ? '📌' : ''} ${thread.title}
+                ${thread.is_admin_thread ? '📌' : ''} ${safeTitle}
             </h2>
             ${notifyBtn}
             ${formHTML}
@@ -104,6 +123,7 @@ async function loadPosts() {
 
         if (error) throw error;
 
+        // オーナー（スレ主）のデータもエスケープ対象
         const ownerItem = {
             name: currentThreadData.name || "名無しさん",
             content: currentThreadData.content || "",
@@ -118,32 +138,38 @@ async function loadPosts() {
             const num = allItems.length - index;
             const isAdm = p.is_admin_only === true;
             const style = isAdm ? 'background:#fff5f5; border-left:5px solid #ff4757;' : 'border-bottom:1px solid #eee;';
+            
+            // 安全な名前と内容
+            const safeName = escapeHTML(p.name);
+            const safeContent = escapeHTML(p.content);
+            const safeIDDisp = escapeHTML(p.user_id_display || '???');
+            
             const deleteBtn = (isAdmin && !p.is_owner) ? `<button onclick="deletePost(${p.id})" style="color:red; font-size:10px; margin-left:10px; cursor:pointer; background:none; border:1px solid red; border-radius:3px; padding:2px 5px;">[削除]</button>` : '';
 
             return `
                 <div style="padding:10px; margin-bottom:5px; ${style}">
                     <div style="font-size:12px; color:#666;">
-                        <b>${num}</b> : <span style="color:${p.is_owner ? 'red' : 'green'}; font-weight:bold;">${p.name}</span>
-                        [${new Date(p.created_at).toLocaleString()}] ID:${p.user_id_display || '???'}
+                        <b>${num}</b> : <span style="color:${p.is_owner ? 'red' : 'green'}; font-weight:bold;">${safeName}</span>
+                        [${new Date(p.created_at).toLocaleString()}] ID:${safeIDDisp}
                         ${deleteBtn}
                     </div>
-                    <div style="margin-top:5px; white-space:pre-wrap;">${isAdm ? '<b>【運営】</b>' : ''}${p.content}</div>
+                    <div style="margin-top:5px; white-space:pre-wrap;">${isAdm ? '<b>【運営】</b>' : ''}${safeContent}</div>
                 </div>`;
         }).join('');
-    } catch (e) { listArea.innerHTML = "エラー: " + e.message; }
+    } catch (e) { listArea.innerHTML = "エラー: " + escapeHTML(e.message); }
 }
 
-// --- 5. リアルタイム監視 ---
+// --- 5. リアルタイム監視（通知もエスケープ） ---
 function startRealtimeMonitor() {
     supabaseClient.channel(`thread-${threadId}`).on('postgres_changes', { 
         event: 'INSERT', schema: 'public', table: 'posts', filter: `thread_id=eq.${threadId}` 
     }, (payload) => {
         
-        // 【重要】オンの時だけ通知
         const isEnabled = localStorage.getItem('notify_enabled') === 'true';
         if (isEnabled && Notification.permission === "granted") {
-            new Notification(`新着: ${currentThreadData.title}`, { 
-                body: `${payload.new.name}: ${payload.new.content}` 
+            // 通知のテキストもエスケープ処理（※通知はHTML解釈されないことが多いですが念のため）
+            new Notification(`新着: ${escapeHTML(currentThreadData.title)}`, { 
+                body: `${escapeHTML(payload.new.name)}: ${escapeHTML(payload.new.content)}` 
             });
         }
         
@@ -151,10 +177,10 @@ function startRealtimeMonitor() {
     }).subscribe();
 }
 
-// --- 6. 通知オン・オフ切り替え ---
+// --- 6. 通知・削除・投稿処理 ---
+// (通知ボタン、通知更新、削除、投稿ハンドルは既存通り。ただし投稿時にIDをエスケープ)
 window.toggleNotification = function() {
     if (!("Notification" in window)) return alert("非対応ブラウザです");
-
     if (Notification.permission !== "granted") {
         Notification.requestPermission().then(permission => {
             if (permission === "granted") {
@@ -165,8 +191,6 @@ window.toggleNotification = function() {
         });
         return;
     }
-
-    // オンオフを反転
     const isNowEnabled = localStorage.getItem('notify_enabled') === 'true';
     localStorage.setItem('notify_enabled', !isNowEnabled);
     updateNotifyButton();
@@ -175,22 +199,16 @@ window.toggleNotification = function() {
 function updateNotifyButton() {
     const btn = document.getElementById('notify-btn');
     if (!btn) return;
-
     const isEnabled = localStorage.getItem('notify_enabled') === 'true';
     if (Notification.permission === "granted" && isEnabled) {
         btn.innerHTML = "🔔 通知：オン";
-        btn.style.background = "#e1ffed";
-        btn.style.color = "#2ed573";
-        btn.style.borderColor = "#2ed573";
+        btn.style.background = "#e1ffed"; btn.style.color = "#2ed573"; btn.style.borderColor = "#2ed573";
     } else {
         btn.innerHTML = "🔕 通知：オフ";
-        btn.style.background = "#fff5f5";
-        btn.style.color = "#ff4757";
-        btn.style.borderColor = "#ff4757";
+        btn.style.background = "#fff5f5"; btn.style.color = "#ff4757"; btn.style.borderColor = "#ff4757";
     }
 }
 
-// --- 7. 削除・投稿 ---
 window.deletePost = async function(postId) {
     if (!confirm("削除しますか？") || !supabaseClient) return;
     await supabaseClient.from('posts').delete().eq('id', postId);
@@ -213,7 +231,11 @@ async function handlePost(e) {
     }]);
 
     if (error) alert("失敗: " + error.message);
-    else document.getElementById('res-content').value = "";
+    else {
+        document.getElementById('res-content').value = "";
+        // 名前を保存（次回のためにエスケープなしで保存してOK）
+        localStorage.setItem('user_display_name', name);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', init);

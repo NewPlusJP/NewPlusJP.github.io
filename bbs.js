@@ -1,16 +1,30 @@
-// --- Supabaseの設定 ---
-const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU";
+// --- Supabaseの初期化 ---
+// config.js が先に読み込まれている前提で、グローバル変数 SUPABASE_URL / SUPABASE_ANON_KEY を使用します。
+const supabaseClient = (window.supabase && typeof SUPABASE_URL !== 'undefined') 
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
+  : null;
 
-const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+// --- 【重要】エスケープ関数 ---
+function escapeHTML(str) {
+  if (!str) return "";
+  return String(str).replace(/[&<>"']/g, function(m) {
+    return {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[m];
+  });
+}
 
 // --- 1. スレッド一覧表示 ---
 async function loadThreads() {
   const container = document.getElementById('thread-container');
   if (!container) return;
-
+  
   if (!supabaseClient) {
-    container.innerHTML = '<div class="aa" style="border:1px solid red; padding:10px;">⚠️ 接続エラー</div>';
+    container.innerHTML = `<p style="color:red;">エラー: Supabaseの設定が読み込めません。config.jsを確認してください。</p>`;
     return;
   }
 
@@ -18,18 +32,17 @@ async function loadThreads() {
     .from('threads').select('*').order('created_at', { ascending: false });
 
   if (error) {
-    container.innerHTML = '<p>エラー: ' + error.message + '</p>';
+    container.innerHTML = `<p>エラー: ${escapeHTML(error.message)}</p>`;
     return;
   }
 
   const isAdmin = localStorage.getItem('is_admin') === 'true';
-
   if (!threads || threads.length === 0) {
     container.innerHTML = '<p>まだスレッドがありません。</p>';
     return;
   }
 
-  // ピン留め優先の並び替え
+  // 管理者スレッド（is_admin_thread）を上に持ってくるソート
   const sortedThreads = [...threads].sort((a, b) => (b.is_admin_thread ? 1 : 0) - (a.is_admin_thread ? 1 : 0));
 
   container.innerHTML = sortedThreads.map(thread => {
@@ -37,22 +50,27 @@ async function loadThreads() {
     const cardStyle = isSpecial ? 'border: 2px solid #ff4757; background: rgba(255, 71, 87, 0.05);' : '';
     const badge = isSpecial ? '<span style="background:#ff4757; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7em; margin-right:8px; vertical-align:middle;">📌 置標 / 運営</span>' : '';
 
+    const safeTitle = escapeHTML(thread.title);
+    const safeName = escapeHTML(thread.name);
+    const safeContent = escapeHTML(thread.content);
+    const safeId = escapeHTML(thread.id);
+
     return `
       <div class="aa" style="${cardStyle} padding:15px; margin-bottom:10px; border-radius:10px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <h3 style="margin: 0;">
             ${badge}
-            <a href="thread.html?id=${thread.id}" style="color: ${isSpecial ? '#ff4757' : 'inherit'}; text-decoration: none; font-weight:bold;">
-              ${thread.title}
+            <a href="thread.html?id=${safeId}" style="color: ${isSpecial ? '#ff4757' : 'inherit'}; text-decoration: none; font-weight:bold;">
+              ${safeTitle}
             </a>
           </h3>
-          ${isAdmin ? `<button onclick="deleteThread('${thread.id}')" style="color:red; cursor:pointer; background:white; border:1px solid red; border-radius:4px; padding:2px 5px; font-size:12px;">削除 🗑️</button>` : ''}
+          ${isAdmin ? `<button onclick="deleteThread('${safeId}')" style="color:red; cursor:pointer; background:white; border:1px solid red; border-radius:4px; padding:2px 5px; font-size:12px;">削除 🗑️</button>` : ''}
         </div>
         <div style="font-size:0.85em; color:#666; margin:5px 0;">
-          1 ：<span style="font-weight:bold; color:#2ed573;">${thread.name}</span>：${new Date(thread.created_at).toLocaleString()}
+          1 ：<span style="font-weight:bold; color:#2ed573;">${safeName}</span>：${new Date(thread.created_at).toLocaleString()}
         </div>
         <div style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; font-size:0.95em; white-space: pre-wrap;">
-          ${thread.content}
+          ${safeContent}
         </div>
       </div>
     `;
@@ -61,6 +79,7 @@ async function loadThreads() {
 
 // --- 2. 管理者ログイン・削除機能 ---
 window.handleAdminLogin = async function() {
+  if (!supabaseClient) return alert("接続エラー");
   const name = document.getElementById('admin-user').value.trim();
   const pass = document.getElementById('admin-pass').value.trim();
 
@@ -89,28 +108,33 @@ const threadForm = document.getElementById('thread-form');
 if (threadForm) {
   threadForm.addEventListener('submit', async function(e) {
     e.preventDefault();
+    if (!supabaseClient) return;
+    
     const title = document.getElementById('thread-title').value;
     const name = document.getElementById('user-name').value || "名無しさん";
     const content = document.getElementById('content').value;
     const adminCheck = document.getElementById('is-admin-thread');
 
     const { data, error } = await supabaseClient
-      .from('threads').insert([{ title, name, content, is_admin_thread: adminCheck ? adminCheck.checked : false }]).select(); 
+      .from('threads').insert([{ 
+        title, 
+        name, 
+        content, 
+        is_admin_thread: adminCheck ? adminCheck.checked : false 
+      }]).select(); 
     
     if (error) alert("失敗: " + error.message);
     else if (data) window.location.href = `thread.html?id=${data[0].id}`;
   });
 }
 
-// --- 4. 通知設定（オン・オフ切り替え対応） ---
+// --- 4. 通知設定 ---
 window.toggleNotification = function() {
     if (!("Notification" in window)) return alert("非対応ブラウザです");
 
-    // ブラウザの許可をまず確認
     if (Notification.permission !== "granted") {
         Notification.requestPermission().then(permission => {
             if (permission === "granted") {
-                // 初回許可時は自動でオンにする
                 localStorage.setItem('notify_enabled', 'true');
                 alert("通知を有効にしました！");
                 updateNotifyButton();
@@ -119,32 +143,25 @@ window.toggleNotification = function() {
         return;
     }
 
-    // すでに許可されている場合は、サイト内の設定を反転させる
     const isEnabled = localStorage.getItem('notify_enabled') === 'true';
-    if (isEnabled) {
-        localStorage.setItem('notify_enabled', 'false');
-        alert("通知を【オフ】にしました。");
-    } else {
-        localStorage.setItem('notify_enabled', 'true');
-        alert("通知を【オン】にしました！");
-    }
+    localStorage.setItem('notify_enabled', isEnabled ? 'false' : 'true');
+    alert(`通知を【${!isEnabled ? 'オン' : 'オフ'}】にしました。`);
     updateNotifyButton();
 };
 
 function updateNotifyButton() {
     const btn = document.getElementById('notify-btn-top');
     if (!btn) return;
-
     const isEnabled = localStorage.getItem('notify_enabled') === 'true';
     const isPermissionGranted = Notification.permission === "granted";
 
     if (isPermissionGranted && isEnabled) {
         btn.innerHTML = "🔔 通知：オン (クリックでオフ)";
-        btn.style.background = "#e1ffed"; // 緑っぽく
+        btn.style.background = "#e1ffed";
         btn.style.color = "#2ed573";
     } else {
         btn.innerHTML = "🔕 通知：オフ (クリックでオン)";
-        btn.style.background = "#fff5f5"; // 赤っぽく
+        btn.style.background = "#fff5f5";
         btn.style.color = "#ff4757";
     }
 }
@@ -159,7 +176,12 @@ function checkAdminStatus() {
   if (isAdmin) {
     if (adminConsole) adminConsole.style.display = 'block';
     if (adminInputs) adminInputs.style.display = 'none';
-    if (document.getElementById('admin-name')) document.getElementById('admin-name').innerText = localStorage.getItem('admin_name');
+    
+    const adminDisplayName = escapeHTML(localStorage.getItem('admin_name'));
+    if (document.getElementById('admin-name')) {
+      document.getElementById('admin-name').innerText = adminDisplayName;
+    }
+    
     if (optionContainer) {
       optionContainer.innerHTML = `<label style="color: #ff4757; font-weight: bold;"><input type="checkbox" id="is-admin-thread"> 📢 運営専用（ピン留め）にする</label>`;
     }
@@ -173,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAdminStatus();
   updateNotifyButton();
   
-  // オンラインカウンター
   const counterEl = document.getElementById('online-counter');
   if (counterEl) {
     counterEl.innerText = `現在 ${Math.floor(Math.random() * 5) + 1} 人が閲覧中`;

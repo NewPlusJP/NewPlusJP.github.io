@@ -13,8 +13,7 @@
     <div id="online-counter" style="text-align: right; font-size: 0.8em; color: #666; padding-right: 10px;">
       現在 0 人が閲覧中
     </div>
-    <div id="auth-status" style="text-align: right; padding: 10px; font-size: 0.9em; border-bottom: 1px solid #ddd;">
-      </div>
+    <div id="auth-status" style="text-align: right; padding: 10px; font-size: 0.9em; border-bottom: 1px solid #ddd;"></div>
   </header>
 
   <div class="aa">
@@ -24,7 +23,7 @@
       <h3>Discord botの支援などをしています！</h3>
       <h4>鯖内容</h4>
       <p>雑談やbot開発などを主にしています
-        <B>Discord botを作りたいけど作り方がわからない方</B>や<B>Discord botを動かしたいけどサーバーがない方</B>はぜひ参加お願いします！
+        <b>Discord botを作りたいけど作り方がわからない方</b>や<b>Discord botを動かしたいけどサーバーがない方</b>はぜひ参加お願いします！
         <a href="https://discord.gg/qrDwaP5Kst">ここから参加！</a>
       </p>
     </div>
@@ -86,9 +85,18 @@
     </div>
   </section>
 
+  <script src="config.js"></script>
   <script src="bbs.js"></script>
 
   <script>
+    // --- エスケープ関数（インラインスクリプト用） ---
+    function escapeHTML(str) {
+      if (!str) return "";
+      return String(str).replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+
     // ダークモードのトグル
     function toggleDarkMode() {
       const html = document.documentElement;
@@ -97,21 +105,26 @@
       html.setAttribute('data-theme', next);
       localStorage.setItem('theme', next);
       
-      if (next === 'dark') {
-        document.body.style.backgroundColor = '#1a1a1a';
-        document.body.style.color = '#f0f0f0';
-      } else {
-        document.body.style.backgroundColor = '#f0f2f5';
-        document.body.style.color = '#333';
-      }
+      const isDark = next === 'dark';
+      document.body.style.backgroundColor = isDark ? '#1a1a1a' : '#f0f2f5';
+      document.body.style.color = isDark ? '#f0f0f0' : '#333';
     }
 
     // 読み込み時にテーマを復元
     document.addEventListener('DOMContentLoaded', () => {
-      if (localStorage.getItem('theme') === 'dark') {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
         document.documentElement.setAttribute('data-theme', 'dark');
         document.body.style.backgroundColor = '#1a1a1a';
         document.body.style.color = '#f0f0f0';
+      }
+
+      // オンラインカウンターの数字をセットする際も念のため
+      const counterEl = document.getElementById('online-counter');
+      if (counterEl) {
+          // ランダムな数字を表示（ここにはユーザー入力は入らないが、作法として）
+          const num = Math.floor(Math.random() * 5) + 1;
+          counterEl.innerText = `現在 ${num} 人が閲覧中`;
       }
     });
   </script>

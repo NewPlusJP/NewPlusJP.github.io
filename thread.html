@@ -10,8 +10,7 @@
     src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" 
     crossorigin="anonymous"
   ></script>
-
-  </head>
+</head>
 <body>
 
   <header>
@@ -20,25 +19,31 @@
 
   <main id="single-thread-container">
     <div class="aa">
-      <p style="color:#666;">データを読み込んでいます...</p>
+      <p id="loading-msg" style="color:#666;">データを読み込んでいます...</p>
       
       <div id="loading-hint" style="display:none; margin-top:20px; padding:15px; border:1px solid #ccc; background:#f9f9f9; font-size:0.9em;">
         <p><b>なかなか読み込まれない場合：</b></p>
         <ul style="text-align:left; display:inline-block;">
-          <li>ブラウザの「追跡防止」機能をオフにしてみてください。</li>
+          <li>ブラウザの「追跡防止（トラッキング防止）」機能をオフにしてみてください。</li>
           <li>広告ブロック（AdBlock等）を一時的にオフにしてみてください。</li>
+          <li>URLに正しいIDが含まれているか確認してください。</li>
         </ul>
       </div>
+
       <script>
+        // 3秒経ってもコンテンツが表示されなければヒントを出す
         setTimeout(() => {
-          if (document.getElementById('res-list') === null) {
+          const list = document.getElementById('res-list');
+          if (!list || list.innerText === "読み込み中...") {
             document.getElementById('loading-hint').style.display = 'block';
+            const msg = document.getElementById('loading-msg');
+            if(msg) msg.style.display = 'none';
           }
         }, 3000);
       </script>
 
       <noscript>
-        <p style="color:red;">JavaScriptが効いていないようです。ブラウザの設定を確認してください。</p>
+        <p style="color:red;">JavaScriptが無効です。掲示板を利用するにはブラウザの設定でJavaScriptを有効にしてください。</p>
       </noscript>
     </div>
   </main>
