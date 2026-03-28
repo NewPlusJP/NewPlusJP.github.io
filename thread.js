@@ -15,11 +15,7 @@ async function init() {
     if (!container) return;
 
     if (!supabaseClient) {
-        container.innerHTML = `
-            <div class="aa" style="border:2px solid red; padding:15px;">
-                <h3 style="color:red; margin-top:0;">⚠️ 接続が遮断されました</h3>
-                <p>ブラウザの「追跡防止機能」または「広告ブロック」をオフにしてください。</p>
-            </div>`;
+        container.innerHTML = `<div class="aa" style="border:2px solid red; padding:15px;"><h3 style="color:red; margin-top:0;">⚠️ 接続遮断</h3><p>追跡防止機能をオフにしてください。</p></div>`;
         return;
     }
 
@@ -30,10 +26,7 @@ async function init() {
 
     try {
         const { data: thread, error } = await supabaseClient
-            .from('threads')
-            .select('*')
-            .eq('id', threadId)
-            .maybeSingle();
+            .from('threads').select('*').eq('id', threadId).maybeSingle();
 
         if (error) throw error;
         if (!thread) {
@@ -44,6 +37,11 @@ async function init() {
         currentThreadData = thread;
         renderPage(thread);
         await loadPosts();
+
+        // 【追加】通知が許可されていれば、このスレのリアルタイム監視を開始
+        if (Notification.permission === "granted") {
+            startRealtimeMonitor();
+        }
     } catch (e) {
         container.innerHTML = "接続エラー: " + e.message;
     }
@@ -70,11 +68,10 @@ function renderPage(thread) {
             </div>`;
     }
 
-    // 通知ボタンのHTMLを追加
     const notifyBtn = `
         <div style="text-align:right; margin-bottom:10px;">
             <button onclick="toggleNotification()" id="notify-btn" style="font-size:11px; padding:3px 10px; cursor:pointer; background:#fff; border:1px solid #ddd; border-radius:20px;">
-                🔔 通知オンにする
+                🔔 このスレの通知をオン
             </button>
         </div>`;
 
@@ -87,14 +84,11 @@ function renderPage(thread) {
             ${formHTML}
             <div id="res-list">読み込み中...</div>
             <p style="text-align:center; margin-top:20px;"><a href="index.html">【トップに戻る】</a></p>
-        </div>
-    `;
+        </div>`;
 
     if (document.getElementById('reply-form')) {
         document.getElementById('reply-form').addEventListener('submit', handlePost);
     }
-    
-    // 通知ボタンの状態を初期更新
     updateNotifyButton();
 }
 
@@ -106,10 +100,7 @@ async function loadPosts() {
 
     try {
         const { data: posts, error } = await supabaseClient
-            .from('posts')
-            .select('*')
-            .eq('thread_id', threadId)
-            .order('created_at', { ascending: false });
+            .from('posts').select('*').eq('thread_id', threadId).order('created_at', { ascending: false });
 
         if (error) throw error;
 
@@ -123,15 +114,11 @@ async function loadPosts() {
         };
 
         const allItems = [...(posts || []), ownerItem];
-
         listArea.innerHTML = allItems.map((p, index) => {
             const num = allItems.length - index;
             const isAdm = p.is_admin_only === true;
             const style = isAdm ? 'background:#fff5f5; border-left:5px solid #ff4757;' : 'border-bottom:1px solid #eee;';
-            
-            const deleteBtn = (isAdmin && !p.is_owner) 
-                ? `<button onclick="deletePost(${p.id})" style="color:red; font-size:10px; margin-left:10px; cursor:pointer; background:none; border:1px solid red; border-radius:3px; padding:2px 5px;">[削除]</button>` 
-                : '';
+            const deleteBtn = (isAdmin && !p.is_owner) ? `<button onclick="deletePost(${p.id})" style="color:red; font-size:10px; margin-left:10px; cursor:pointer; background:none; border:1px solid red; border-radius:3px; padding:2px 5px;">[削除]</button>` : '';
 
             return `
                 <div style="padding:10px; margin-bottom:5px; ${style}">
@@ -143,101 +130,78 @@ async function loadPosts() {
                     <div style="margin-top:5px; white-space:pre-wrap;">${isAdm ? '<b>【運営】</b>' : ''}${p.content}</div>
                 </div>`;
         }).join('');
-
-    } catch (e) {
-        listArea.innerHTML = "レスの読み込み失敗: " + e.message;
-    }
+    } catch (e) { listArea.innerHTML = "エラー: " + e.message; }
 }
 
-// --- 5. 削除機能 (グローバル) ---
-window.deletePost = async function(postId) {
-    if (!confirm("このレスを削除しますか？")) return;
-    if (!supabaseClient) return;
+// --- 5. リアルタイム監視（このスレのみ） ---
+function startRealtimeMonitor() {
+    if (!supabaseClient || !threadId) return;
 
-    const { error } = await supabaseClient
-        .from('posts')
-        .delete()
-        .eq('id', postId);
+    supabaseClient
+        .channel(`thread-${threadId}`)
+        .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'posts', 
+            filter: `thread_id=eq.${threadId}` 
+        }, (payload) => {
+            const p = payload.new;
+            // 通知を送る
+            if (Notification.permission === "granted") {
+                new Notification(`新着レス (${currentThreadData.title})`, {
+                    body: `${p.name}: ${p.content.substring(0, 30)}...`
+                });
+            }
+            // 画面を更新
+            loadPosts();
+        })
+        .subscribe();
+}
 
-    if (error) {
-        alert("削除に失敗しました: " + error.message);
-    } else {
-        await loadPosts();
-    }
-};
-
-// --- 6. 通知機能 ---
+// --- 6. 通知設定・削除・投稿 ---
 window.toggleNotification = function() {
-    if (!("Notification" in window)) {
-        alert("お使いのブラウザは通知に対応していません。");
-        return;
-    }
-
+    if (!("Notification" in window)) return alert("非対応ブラウザです");
     Notification.requestPermission().then(permission => {
         if (permission === "granted") {
-            alert("通知が有効になりました。");
             updateNotifyButton();
-        } else {
-            alert("通知がブロックされました。ブラウザの設定から許可してください。");
+            startRealtimeMonitor();
+            alert("このスレッドの通知がオンになりました");
         }
     });
 };
 
 function updateNotifyButton() {
     const btn = document.getElementById('notify-btn');
-    if (!btn) return;
-    if (Notification.permission === "granted") {
-        btn.innerHTML = "🔕 通知は有効です";
+    if (btn && Notification.permission === "granted") {
+        btn.innerHTML = "🔕 通知オン(このスレ)";
         btn.style.background = "#e1ffed";
         btn.style.borderColor = "#2ed573";
     }
 }
 
-function sendPushNotification(name, content) {
-    if (Notification.permission === "granted") {
-        new Notification(`新着レス: ${name}さん`, {
-            body: content,
-            icon: "favicon.ico" // 自分のサイトのアイコンがあればパスを指定
-        });
-    }
-}
+window.deletePost = async function(postId) {
+    if (!confirm("削除しますか？") || !supabaseClient) return;
+    await supabaseClient.from('posts').delete().eq('id', postId);
+    await loadPosts();
+};
 
-// --- 7. 投稿処理 ---
 async function handlePost(e) {
     e.preventDefault();
     if (!supabaseClient) return;
-
-    const btn = document.getElementById('submit-btn');
     const content = document.getElementById('res-content').value;
     const name = document.getElementById('res-name').value || "名無しさん";
     const adminMode = document.getElementById('admin-mode');
-
     if (!content.trim()) return;
 
-    btn.disabled = true;
-    const isSecret = adminMode ? adminMode.checked : false;
     const myID = (localStorage.getItem('is_admin') === 'true') ? "ADMIN" : "ID:" + Math.random().toString(36).substring(2, 10).toUpperCase();
 
-    const { error } = await supabaseClient
-        .from('posts')
-        .insert([{
-            thread_id: threadId,
-            name: name,
-            content: content,
-            user_id_display: myID,
-            is_admin_only: isSecret
-        }]);
+    const { error } = await supabaseClient.from('posts').insert([{
+        thread_id: threadId, name: name, content: content,
+        user_id_display: myID, is_admin_only: adminMode ? adminMode.checked : false
+    }]);
 
-    if (error) {
-        alert("投稿失敗: " + error.message);
-    } else {
-        // 自分の投稿完了時にも通知を出す（テスト用）
-        sendPushNotification(name, content);
-        
-        document.getElementById('res-content').value = "";
-        await loadPosts();
-    }
-    btn.disabled = false;
+    if (error) alert("失敗: " + error.message);
+    else document.getElementById('res-content').value = "";
 }
 
 document.addEventListener('DOMContentLoaded', init);
