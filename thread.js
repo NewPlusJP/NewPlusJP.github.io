@@ -4,7 +4,7 @@ try {
   if (typeof SUPABASE_URL !== 'undefined') {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
-} catch (e) { console.error("Supabase初期化失敗:", e); }
+} catch (e) { console.error("初期化失敗:", e); }
 
 const params = new URLSearchParams(window.location.search);
 const threadId = params.get('id');
@@ -19,13 +19,16 @@ async function loadEverything() {
   const mainContainer = document.getElementById('single-thread-container');
   if (!mainContainer || !supabaseClient || !threadId) return;
 
+  // 全体の背景を少し柔らかい色に（ページ全体に効かせるならCSS推奨だけどJSで一旦）
+  document.body.style.backgroundColor = "#fdfbfb";
+
   const [tRes, pRes] = await Promise.all([
     supabaseClient.from('threads').select('*').eq('id', threadId).maybeSingle(),
     supabaseClient.from('posts').select('*').eq('thread_id', threadId).order('created_at', { ascending: false })
   ]);
 
   if (tRes.error || !tRes.data) {
-    mainContainer.innerHTML = '<div class="aa" style="text-align:center; padding:50px;">スレッドが見つかりません。</div>';
+    mainContainer.innerHTML = '<div class="aa">スレッドが見つかりません(>_<)</div>';
     return;
   }
 
@@ -34,50 +37,52 @@ async function loadEverything() {
   const totalPosts = posts.length + 1;
 
   let html = `
-    <div style="margin-bottom: 20px; padding: 10px; border-bottom: 2px solid #eee; display: flex; justify-content: space-between; align-items: center;">
-      <h2 style="margin:0; font-size:1.4em; color: #333;">${escapeHTML(thread.title)}</h2>
-      <button id="notify-toggle-btn" onclick="toggleNotification()" style="cursor:pointer; padding:6px 12px; border-radius:20px; border:1px solid #ddd; background:#fff; font-size:12px; transition:0.3s;">🔕 通知：オフ</button>
+    <div style="background: linear-gradient(135deg, #fff5f5 0%, #f0fff4 100%); padding: 20px; border-radius: 20px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03);">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2 style="margin:0; font-size:1.5em; color: #555; letter-spacing: 1px;">✨ ${escapeHTML(thread.title)}</h2>
+        <button id="notify-toggle-btn" onclick="toggleNotification()" style="cursor:pointer; padding:8px 16px; border-radius:30px; border:none; background:#fff; color:#888; font-size:12px; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">🔕 通知オフ</button>
+      </div>
     </div>
 
-    <div class="aa" style="border: none; background: #f8f9fa; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 30px;">
+    <div style="background: #fff; border-radius: 25px; padding: 20px; margin-bottom: 30px; border: 3px border-style: dotted; border-color: #ffe3e3; box-shadow: 0 10px 20px rgba(0,0,0,0.05);">
       <form id="post-form">
-        <div style="margin-bottom:12px; font-weight:bold; color:#2ed573; font-size:1.1em;">✨ いまどうしてる？</div>
-        <input type="text" id="user-name" placeholder="お名前（空欄で名無しさん）" style="width:100%; margin-bottom:10px; padding:12px; border:1px solid #e0e0e0; border-radius:10px; box-sizing:border-box; outline:none;">
-        <textarea id="post-content" placeholder="最新メッセージを投稿しよう！" required style="width:100%; height:100px; margin-bottom:10px; padding:12px; border:1px solid #e0e0e0; border-radius:10px; box-sizing:border-box; outline:none; resize:none; font-family:inherit;"></textarea>
-        <button type="submit" id="post-submit-btn" style="width:100%; padding:12px; background:#2ed573; color:white; border:none; border-radius:10px; cursor:pointer; font-weight:bold; font-size:1em; box-shadow: 0 4px 10px rgba(46, 213, 115, 0.3);">送信する</button>
+        <div style="margin-bottom:15px; text-align:center; color:#ff9a9e; font-weight:bold; font-size:1.2em;">〜 みんなとおしゃべり 〜</div>
+        <input type="text" id="user-name" placeholder="おなまえ" style="width:100%; margin-bottom:10px; padding:12px 20px; border:2px solid #fff5f5; background:#fff9f9; border-radius:15px; box-sizing:border-box; outline:none; font-size:1em;">
+        <textarea id="post-content" placeholder="ここに入力してね♪" required style="width:100%; height:90px; margin-bottom:15px; padding:15px 20px; border:2px solid #fff5f5; background:#fff9f9; border-radius:15px; box-sizing:border-box; outline:none; resize:none; font-family:inherit;"></textarea>
+        <button type="submit" id="post-submit-btn" style="width:100%; padding:14px; background:linear-gradient(to right, #ff9a9e 0%, #fecfef 100%); color:white; border:none; border-radius:50px; cursor:pointer; font-weight:bold; font-size:1.1em; transition: 0.3s;">送信しちゃう！</button>
       </form>
     </div>
 
     <div id="posts-list">
   `;
 
-  // 最新のレス
+  // 💬 最新レス：吹き出し風
   html += posts.map((post, index) => {
     const postNumber = totalPosts - index;
     return `
-      <div class="aa" style="border:none; background:#fff; border-radius:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); margin-bottom:15px; padding:15px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <div>
-            <span style="color:#2ed573; font-weight:bold; font-size:0.9em;">#${postNumber}</span>
-            <span style="font-weight:bold; margin-left:8px; color:#444;">${escapeHTML(post.name)}</span>
-          </div>
-          <div style="font-size: 0.75em; color: #999;">${new Date(post.created_at).toLocaleString()}</div>
+      <div style="margin-bottom:20px; position:relative;">
+        <div style="display:flex; align-items:center; margin-bottom:5px; margin-left:10px;">
+          <span style="background:#ff9a9e; color:#white; padding:2px 8px; border-radius:10px; font-size:0.7em; color:white; font-weight:bold;">${postNumber}</span>
+          <span style="font-weight:bold; margin-left:8px; color:#666; font-size:0.9em;">${escapeHTML(post.name)}</span>
+          <span style="font-size: 0.7em; color: #ccc; margin-left:10px;">${new Date(post.created_at).toLocaleTimeString()}</span>
         </div>
-        <div style="white-space: pre-wrap; line-height:1.6; color:#333;">${escapeHTML(post.content)}</div>
+        <div style="background:white; padding:15px 20px; border-radius:20px; border:1px solid #eee; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display:inline-block; min-width:60%; max-width:90%; position:relative;">
+          <div style="white-space: pre-wrap; line-height:1.6; color:#555;">${escapeHTML(post.content)}</div>
+        </div>
       </div>
     `;
   }).join('');
 
-  // 1番（スレッド開始メッセージ）
+  // 🏡 1番：はじまりのメッセージ
   html += `
-      <div style="text-align:center; margin: 30px 0 10px; color:#bbb; font-size:0.8em;">ーーー ここからスレッド開始 ーーー</div>
-      <div class="aa" style="border:none; background:#e1ffed; border-radius:12px; padding:20px; border-left: 6px solid #2ed573;">
+      <div style="text-align:center; margin: 40px 0 20px; color:#ddd; font-size:0.9em;">˚✧₊ わたしたちの歴史はここから ₊✧˚</div>
+      <div style="background: #f0fff4; padding: 25px; border-radius: 30px; border: 2px dashed #b2f2bb; text-align: center;">
         <div style="margin-bottom:10px;">
-          <span style="color:#2ed573; font-weight:bold;">#1</span>
-          <span style="font-weight:bold; margin-left:8px; color:#333;">${escapeHTML(thread.name)}</span>
-          <span style="font-size: 0.75em; color: #888; margin-left:10px;">${new Date(thread.created_at).toLocaleString()}</span>
+          <span style="color:#51cf66; font-weight:bold; font-size:1.2em;">#1</span>
+          <span style="font-weight:bold; margin-left:8px; color:#444;">${escapeHTML(thread.name)}</span>
         </div>
-        <div style="white-space: pre-wrap; line-height:1.6; color:#333; font-size:1.1em;">${escapeHTML(thread.content)}</div>
+        <div style="white-space: pre-wrap; line-height:1.8; color:#555; font-size:1.1em; font-style:italic;">"${escapeHTML(thread.content)}"</div>
+        <div style="margin-top:10px; font-size: 0.75em; color: #999;">Created at ${new Date(thread.created_at).toLocaleString()}</div>
       </div>
     </div>
   `;
@@ -87,7 +92,7 @@ async function loadEverything() {
   updateNotifyBtnStatus();
 }
 
-// --- 以下、書き込み・監視・通知のロジックは前回と同じ ---
+// --- ロジック部分は省略（前回と同じものを適用してね） ---
 function setupFormListener() {
   const form = document.getElementById('post-form');
   if (!form) return;
@@ -97,6 +102,7 @@ function setupFormListener() {
     const content = document.getElementById('post-content').value.trim();
     if (!content || btn.disabled) return;
     btn.disabled = true;
+    btn.style.opacity = "0.5";
     await supabaseClient.from('posts').insert([{ 
       thread_id: threadId, 
       name: document.getElementById('user-name').value.trim() || "名無しさん", 
@@ -104,6 +110,7 @@ function setupFormListener() {
     }]);
     document.getElementById('post-content').value = "";
     btn.disabled = false;
+    btn.style.opacity = "1";
     loadEverything();
   };
 }
@@ -127,8 +134,9 @@ function updateNotifyBtnStatus() {
   const btn = document.getElementById('notify-toggle-btn');
   if (!btn) return;
   const isEnabled = localStorage.getItem('notify_enabled') === 'true';
-  btn.innerHTML = isEnabled ? "🔔 通知：オン" : "🔕 通知：オフ";
-  btn.style.background = isEnabled ? "#e1ffed" : "#fff";
+  btn.innerHTML = isEnabled ? "🔔 通知オン" : "🔕 通知オフ";
+  btn.style.background = isEnabled ? "#fff5f5" : "#fff";
+  btn.style.color = isEnabled ? "#ff9a9e" : "#888";
 }
 
 document.addEventListener('DOMContentLoaded', () => {
