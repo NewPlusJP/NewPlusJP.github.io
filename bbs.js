@@ -1,12 +1,19 @@
 // --- Supabaseの設定 ---
 const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU";
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// 追跡防止対策：ライブラリが存在するかチェックしてから初期化
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 // --- 1. スレッド一覧表示 ---
 async function loadThreads() {
   const container = document.getElementById('thread-container');
   if (!container) return;
+
+  if (!supabaseClient) {
+    container.innerHTML = '<div class="aa" style="border:1px solid red; padding:10px;">⚠️ ブラウザの制限によりSupabaseに接続できません。追跡防止機能をオフにしてください。</div>';
+    return;
+  }
 
   const { data: threads, error } = await supabaseClient
     .from('threads')
@@ -32,7 +39,7 @@ async function loadThreads() {
 
   container.innerHTML = sortedThreads.map(thread => {
     const isSpecial = thread.is_admin_thread === true;
-    const cardStyle = isSpecial ? 'border: 2px solid #ff4757; background: var(--card-bg-special, rgba(255, 71, 87, 0.05));' : '';
+    const cardStyle = isSpecial ? 'border: 2px solid #ff4757; background: rgba(255, 71, 87, 0.05);' : '';
     const badge = isSpecial ? '<span style="background:#ff4757; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7em; margin-right:8px; vertical-align:middle;">📌 置標 / 運営</span>' : '';
 
     return `
@@ -44,12 +51,12 @@ async function loadThreads() {
               ${thread.title}
             </a>
           </h3>
-          ${isAdmin ? `<button onclick="deleteThread('${thread.id}')" style="color:red; cursor:pointer; background:none; border:1px solid red; border-radius:4px; padding:2px 5px;">スレごと削除 🗑️</button>` : ''}
+          ${isAdmin ? `<button onclick="deleteThread('${thread.id}')" style="color:red; cursor:pointer; background:white; border:1px solid red; border-radius:4px; padding:2px 5px; font-size:12px;">スレごと削除 🗑️</button>` : ''}
         </div>
         <div class="res-meta" style="font-size:0.85em; color:#666; margin:5px 0;">
           1 ：<span class="res-name" style="font-weight:bold; color:#2ed573;">${thread.name}</span>：${new Date(thread.created_at).toLocaleString()}
         </div>
-        <div class="res-content" style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; font-size:0.95em;">
+        <div class="res-content" style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; font-size:0.95em; white-space: pre-wrap;">
           ${thread.content}
         </div>
       </div>
@@ -57,7 +64,7 @@ async function loadThreads() {
   }).join('');
 }
 
-// --- 2. 管理者ログイン機能 (window.をつけてHTMLから呼べるようにする) ---
+// --- 2. 管理者ログイン機能 ---
 window.handleAdminLogin = async function() {
   const nameInput = document.getElementById('admin-user');
   const passInput = document.getElementById('admin-pass');
@@ -83,24 +90,35 @@ window.handleAdminLogin = async function() {
     return;
   }
 
-  if (data && name.startsWith('admin')) {
+  // 名前がadminで始まる制限を維持
+  if (data && name.toLowerCase().startsWith('admin')) {
     alert("管理者認証に成功しました！");
     localStorage.setItem('is_admin', 'true');
     localStorage.setItem('admin_name', name);
     localStorage.setItem('user_display_name', name);
     location.reload();
   } else {
-    alert("認証失敗：名前がadminで始まっていないか、パスワードが違います。");
+    alert("認証失敗：名前がadminで始まっていないか、情報が正しくありません。");
   }
 };
 
-// --- 3. 削除機能 ---
+// --- 3. 削除機能 (スレッドごと) ---
 window.deleteThread = async function(id) {
   if (!confirm("このスレッドと全てのレスを完全に削除しますか？")) return;
-  await supabaseClient.from('posts').delete().eq('thread_id', id);
-  const { error } = await supabaseClient.from('threads').delete().eq('id', id);
-  if (error) alert("削除失敗: " + error.message);
-  else location.reload();
+  if (!supabaseClient) return;
+
+  try {
+    // 1. 紐づくレスを削除 (SQLにON DELETE CASCADEがあれば自動ですが、念のため)
+    await supabaseClient.from('posts').delete().eq('thread_id', id);
+    // 2. スレッド自体を削除
+    const { error } = await supabaseClient.from('threads').delete().eq('id', id);
+    
+    if (error) throw error;
+    alert("スレッドを削除しました。");
+    location.reload();
+  } catch (err) {
+    alert("削除失敗: " + err.message);
+  }
 };
 
 // --- 4. スレ立て機能 ---
@@ -108,6 +126,8 @@ const threadForm = document.getElementById('thread-form');
 if (threadForm) {
   threadForm.addEventListener('submit', async function(e) {
     e.preventDefault();
+    if (!supabaseClient) return;
+
     const title = document.getElementById('thread-title').value;
     const name = document.getElementById('user-name').value || "名無しさん";
     const content = document.getElementById('content').value;
@@ -178,7 +198,7 @@ window.logout = function() {
 window.toggleDarkMode = function() {
   const html = document.documentElement;
   const isDark = html.getAttribute('data-theme') === 'dark';
-  const newTheme = isDark ? 'light' : 'dark';
+  const nextTheme = isDark ? 'light' : 'dark';
   html.setAttribute('data-theme', nextTheme);
   localStorage.setItem('theme', nextTheme);
 };
