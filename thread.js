@@ -110,7 +110,7 @@ async function loadPosts() {
         .from('posts')
         .select('*')
         .eq('thread_id', threadId)
-        .order('created_at', { ascending: false }); 
+        .order('created_at', { ascending: true }); 
 
     if (error) {
         console.error("データ取得エラー:", error);
