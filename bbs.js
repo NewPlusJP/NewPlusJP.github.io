@@ -1,6 +1,6 @@
 /**
  * NewPlusJP - BBS Main System
- * 管理者ログイン修正・スレッド一覧・スレ立て
+ * 管理者ログイン修正（数値ハッシュ対応）・スレッド一覧・スレ立て
  */
 
 const supabaseClient = (window.supabase && typeof SUPABASE_URL !== 'undefined') 
@@ -10,6 +10,20 @@ const supabaseClient = (window.supabase && typeof SUPABASE_URL !== 'undefined')
 function escapeHTML(str) {
   if (!str) return "";
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+/**
+ * 文字列を数値ハッシュに変換する関数
+ * (2103650130 などの形式に対応)
+ */
+function getHashCode(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0; // 32ビット整数に変換
+  }
+  return Math.abs(hash).toString(); // 正の数にして文字列として返す
 }
 
 // --- 1. スレッド一覧表示 ---
@@ -29,14 +43,12 @@ async function loadThreads() {
 
   const isAdmin = localStorage.getItem('is_admin') === 'true';
 
-  // 運営スレッド(is_admin_thread)を優先的に上に並べる
   const sortedThreads = [...(threads || [])].sort((a, b) => 
     (b.is_admin_thread ? 1 : 0) - (a.is_admin_thread ? 1 : 0)
   );
 
   container.innerHTML = sortedThreads.map(thread => {
     const isSpecial = thread.is_admin_thread === true;
-    
     return `
       <div class="aa" style="padding:15px; margin-bottom:10px; border-radius:8px; border:1px solid ${isSpecial ? '#ff4757' : '#ddd'}; background:${isSpecial ? 'rgba(255, 71, 87, 0.03)' : '#fff'};">
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -59,28 +71,30 @@ async function loadThreads() {
   }).join('');
 }
 
-// --- 2. 管理者認証 (修正済) ---
+// --- 2. 管理者認証 (ハッシュ化対応版) ---
 window.handleAdminLogin = async function() {
   const name = document.getElementById('admin-user').value.trim();
   const pass = document.getElementById('admin-pass').value.trim();
   if (!name || !pass) return;
 
-  // .setHeadersを使わず、標準的な.eq()でユーザーを確認
+  // 入力されたパスワードを数値ハッシュに変換
+  const hashedPass = getHashCode(pass);
+
   const { data, error } = await supabaseClient
     .from('user_accounts')
     .select('username')
     .eq('username', name)
-    .eq('password', pass) // Supabase側のカラム名が'password'である前提
+    .eq('password', hashedPass) // ハッシュ化した数値で照合
     .maybeSingle();
 
   if (data) {
-    alert("管理者認証成功");
+    alert("管理者認証成功！");
     localStorage.setItem('is_admin', 'true');
     localStorage.setItem('admin_name', name);
     location.reload();
   } else {
-    alert("認証失敗：ユーザー名またはパスワードが違います");
-    if (error) console.error(error);
+    alert("認証に失敗しました。ユーザー名またはパスワードが違います。");
+    console.log("Hashed Input:", hashedPass); // デバッグ用
   }
 };
 
@@ -132,7 +146,6 @@ if (threadForm) {
   });
 }
 
-// 管理者UIの表示切り替え
 function checkAdminStatus() {
   const isAdmin = localStorage.getItem('is_admin') === 'true';
   const adminConsole = document.getElementById('admin-console');
@@ -142,7 +155,6 @@ function checkAdminStatus() {
   if (isAdmin) {
     if (adminConsole) adminConsole.style.display = 'block';
     if (adminInputs) adminInputs.style.display = 'none';
-    // 管理者のみ「運営専用」チェックボックスを表示
     if (optionContainer) {
       optionContainer.innerHTML = `
         <label style="color: #ff4757; font-weight: bold; cursor:pointer;">
