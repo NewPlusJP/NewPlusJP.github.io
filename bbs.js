@@ -64,26 +64,44 @@ async function loadThreads() {
   }).join('');
 }
 
-// --- 2. 管理者機能 ---
+// --- 2. 管理者機能 (セキュリティ強化版ログイン) ---
 window.handleAdminLogin = async function() {
   const name = document.getElementById('admin-user').value.trim();
   const pass = document.getElementById('admin-pass').value.trim();
   if (!name || !pass) return;
 
-  const { data } = await supabaseClient.from('user_accounts').select('*').eq('username', name).eq('password', pass).maybeSingle();
+  // 【重要】カスタムヘッダーを使用して照合を行う
+  // SQL側の RLS Policy (user_accounts_login_policy) がこれに反応します
+  const { data, error } = await supabaseClient
+    .from('user_accounts')
+    .select('username') // パスワードは取得せず、存在確認のみ
+    .setHeaders({
+        'x-admin-user': name,
+        'x-admin-pass': pass
+    })
+    .maybeSingle();
 
-  if (data && name.toLowerCase().startsWith('admin')) {
+  if (error) {
+      console.error("Login error:", error);
+      alert("接続エラーが発生しました。");
+      return;
+  }
+
+  // データが返ってきた＝IDとパスワードの組み合わせが正しい
+  if (data) {
     alert("管理者認証成功！");
     localStorage.setItem('is_admin', 'true');
     localStorage.setItem('admin_name', name);
+    localStorage.setItem('user_display_name', name); // 投稿用
     location.reload();
   } else {
-    alert("認証失敗");
+    alert("認証失敗：IDまたはパスワードが正しくありません。");
   }
 };
 
 window.deleteThread = async function(id) {
   if (!confirm("スレッドを完全に削除しますか？")) return;
+  // 注意: RLSで削除が許可されている必要があります
   await supabaseClient.from('posts').delete().eq('thread_id', id);
   await supabaseClient.from('threads').delete().eq('id', id);
   loadThreads();
@@ -97,7 +115,7 @@ if (threadForm) {
     if (!supabaseClient) return;
     
     const btn = document.getElementById('create-btn');
-    const honey = document.getElementById('honey-pot').value; // 【対策：ハニーポット】
+    const honey = document.getElementById('honey-pot') ? document.getElementById('honey-pot').value : ""; 
     const title = document.getElementById('thread-title').value.trim();
     const name = document.getElementById('user-name').value.trim() || "名無しさん";
     const content = document.getElementById('content').value.trim();
@@ -106,13 +124,13 @@ if (threadForm) {
     // 【対策1】ハニーポットに値があればBotとみなして無視
     if (honey) return;
 
-    // 【対策2】HTMLタグの混入をチェック
+    // 【対策2】HTMLタグの簡易チェック
     if (/[<>]/.test(title) || /[<>]/.test(content)) {
       alert("HTMLタグは使用できません。");
       return;
     }
 
-    // 【対策3】連投防止 (クールタイム)
+    // 【対策3】連投防止 (UI側)
     btn.disabled = true;
     btn.innerText = "作成中...";
 
@@ -127,7 +145,6 @@ if (threadForm) {
       btn.disabled = false;
       btn.innerText = "スレッドを作成する";
     } else if (data) {
-      // 成功したらそのスレッドへ移動
       window.location.href = `thread.html?id=${data[0].id}`;
     }
   });
@@ -140,8 +157,8 @@ window.toggleNotification = function() {
         Notification.requestPermission().then(p => { if (p === "granted") { localStorage.setItem('notify_enabled', 'true'); updateNotifyButton(); } });
         return;
     }
-    const isEnabled = localStorage.getItem('notify_enabled') === 'true';
-    localStorage.setItem('notify_enabled', !isEnabled);
+    const isNowEnabled = localStorage.getItem('notify_enabled') === 'true';
+    localStorage.setItem('notify_enabled', !isNowEnabled);
     updateNotifyButton();
 };
 

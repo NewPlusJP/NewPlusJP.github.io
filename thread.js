@@ -15,6 +15,10 @@ let lastPostContent = "";
 
 // ブラウザ固有ID (UUID)
 function getPermanentID() {
+    // 管理者の場合は、IDを固定（または特別な文字列）にすることで「OWNER」表示と整合性をとる
+    if (localStorage.getItem('is_admin') === 'true') {
+        return "ADMIN-" + localStorage.getItem('admin_name');
+    }
     let myID = localStorage.getItem('user_permanent_id');
     if (!myID) {
         myID = "ID-" + crypto.randomUUID(); 
@@ -61,7 +65,7 @@ function renderPage(thread) {
     if (thread.is_admin_thread && !isAdmin) {
         formHTML = `<div style="background:#eee; padding:15px; text-align:center; margin-bottom:20px;">📢 運営専用スレッドです</div>`;
     } else {
-        const adminToggle = isAdmin ? `<label style="color:#ff4757; font-size:12px;"><input type="checkbox" id="admin-mode"> 管理者として投稿</label><br>` : '';
+        const adminToggle = isAdmin ? `<label style="color:#ff4757; font-size:12px;"><input type="checkbox" id="admin-mode" checked> 管理者として投稿</label><br>` : '';
         const savedName = escapeHTML(localStorage.getItem('user_display_name') || '');
         
         formHTML = `
@@ -103,10 +107,11 @@ async function loadPosts() {
     if (!listArea || !currentThreadData) return;
 
     const { data: posts, error } = await supabaseClient
-        .from('posts').select('*').eq('thread_id', threadId).order('created_at', { ascending: false });
+        .from('posts').select('*').eq('thread_id', threadId).order('created_at', { ascending: true }); // 掲示板らしく昇順(古い順)に変更もアリ
 
     if (error) return;
 
+    // スレ主の投稿（1レス目）を擬似的に作成
     const ownerItem = {
         name: currentThreadData.name || "名無しさん",
         content: currentThreadData.content || "",
@@ -117,13 +122,14 @@ async function loadPosts() {
         is_shadow_banned: false
     };
 
-    const allItems = [...(posts || []), ownerItem];
+    // 1レス目 + 取得したレス
+    const allItems = [ownerItem, ...(posts || [])];
 
     listArea.innerHTML = allItems.map((p, index) => {
-        // 【防衛】バン投稿は本人か管理者以外には見せない
+        // 【防衛】シャドウバン投稿は本人か管理者以外には見せない
         if (p.is_shadow_banned && p.user_id_display !== myID && !isAdmin) return '';
 
-        const num = allItems.length - index;
+        const num = index + 1;
         const isAdmPost = p.is_admin_only === true;
         const shadowStyle = p.is_shadow_banned ? 'opacity: 0.5; border: 1px dashed gray;' : '';
         const style = isAdmPost ? 'background:#fff5f5; border-left:5px solid #ff4757;' : 'border-bottom:1px solid #eee;';
@@ -132,16 +138,16 @@ async function loadPosts() {
         if (isAdmin && p.id !== 'THREAD_ROOT') {
             const banLabel = p.is_shadow_banned ? '解除 👻' : 'シャドウバン 👻';
             adminControls = `
-                <button onclick="deletePost(${p.id})" style="color:red; font-size:10px; margin-left:10px; cursor:pointer; background:white; border:1px solid red; border-radius:3px; padding:2px 5px;">削除 🗑️</button>
-                <button onclick="toggleShadowBan(${p.id}, ${p.is_shadow_banned})" style="color:gray; font-size:10px; margin-left:5px; cursor:pointer; background:white; border:1px solid gray; border-radius:3px; padding:2px 5px;">${banLabel}</button>
+                <button onclick="deletePost(event, ${p.id})" style="color:red; font-size:10px; margin-left:10px; cursor:pointer; background:white; border:1px solid red; border-radius:3px; padding:2px 5px;">削除 🗑️</button>
+                <button onclick="toggleShadowBan(event, ${p.id}, ${p.is_shadow_banned})" style="color:gray; font-size:10px; margin-left:5px; cursor:pointer; background:white; border:1px solid gray; border-radius:3px; padding:2px 5px;">${banLabel}</button>
             `;
         }
 
         return `
             <div style="padding:10px; margin-bottom:5px; ${style} ${shadowStyle}">
                 <div style="font-size:12px; color:#666;">
-                    <b>${num}</b> : <span style="color:${p.is_real_owner ? 'red' : '#2ed573'}; font-weight:bold;">${escapeHTML(p.name)}</span>
-                    [${new Date(p.created_at).toLocaleString()}] ID:${escapeHTML(p.user_id_display?.substring(0,11))}...
+                    <b>${num}</b> : <span style="color:${p.is_real_owner || isAdmPost ? 'red' : '#2ed573'}; font-weight:bold;">${escapeHTML(p.name)}</span>
+                    [${new Date(p.created_at).toLocaleString()}] ID:${escapeHTML(p.user_id_display?.substring(0,11))}
                     ${p.is_shadow_banned ? '<b style="color:orange;">[隔離中]</b>' : ''}
                     ${adminControls}
                 </div>
@@ -178,7 +184,7 @@ async function handlePost(e) {
         lastPostContent = content;
         document.getElementById('res-content').value = "";
         localStorage.setItem('user_display_name', name);
-        let timer = 5;
+        let timer = 3; // 待機時間を3秒に短縮(利便性)
         const itv = setInterval(() => {
             timer--; btn.innerText = `待機(${timer})`;
             if (timer <= 0) { clearInterval(itv); btn.disabled = false; btn.innerText = "書き込む"; }
@@ -193,29 +199,27 @@ function startRealtimeMonitor() {
         .subscribe();
 }
 
-// --- 7. 【嫌がらせトラップ】管理者機能 ---
-window.toggleShadowBan = async function(postId, currentStatus) {
+// --- 7. 管理者機能 (トラップ付き) ---
+window.toggleShadowBan = async function(event, postId, currentStatus) {
     if (!confirm(currentStatus ? "解除しますか？" : "シャドウバンしますか？")) return;
     
     const { error } = await supabaseClient.from('posts').update({ is_shadow_banned: !currentStatus }).eq('id', postId);
 
     if (error) {
-        // 不正ログイン者への嘘：「成功しました」と言いつつ、画面だけ変える
-        console.warn("Fake admin detected. Throwing trap.");
+        // 偽管理者への嘘
         alert("設定を更新しました。");
-        event.target.innerText = currentStatus ? "シャドウバン 👻" : "解除 👻";
+        if (event.target) event.target.innerText = currentStatus ? "シャドウバン 👻" : "解除 👻";
         return;
     }
     loadPosts();
 };
 
-window.deletePost = async function(postId) {
+window.deletePost = async function(event, postId) {
     if (!confirm("削除しますか？")) return;
     const { error } = await supabaseClient.from('posts').delete().eq('id', postId);
     
     if (error) {
-        // 不正ログイン者への嘘：消したフリをしてDOMから隠すだけ
-        console.warn("Fake admin detected. Hiding post locally.");
+        // 偽管理者への嘘
         alert("投稿を削除しました。");
         const el = event.target.closest('div[style*="padding:10px"]');
         if (el) el.style.display = 'none';
