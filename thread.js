@@ -13,7 +13,7 @@ const threadId = urlParams.get('id');
 let currentThreadData = null;
 let lastPostContent = ""; 
 
-// ブラウザ固有ID (UUID)
+// ユーザーID固定
 function getPermanentID() {
     if (localStorage.getItem('is_admin') === 'true') {
         return "ADMIN-" + localStorage.getItem('admin_name');
@@ -59,21 +59,20 @@ function renderPage(thread) {
     const container = document.getElementById('single-thread-container');
     const isAdmin = localStorage.getItem('is_admin') === 'true';
     const safeTitle = escapeHTML(thread.title);
+    const savedName = escapeHTML(localStorage.getItem('user_display_name') || '');
 
     let formHTML = '';
     if (thread.is_admin_thread && !isAdmin) {
         formHTML = `<div style="background:#eee; padding:15px; text-align:center; margin-bottom:20px; border-radius:10px;">📢 運営専用スレッドです</div>`;
     } else {
         const adminToggle = isAdmin ? `<label style="color:#ff4757; font-size:12px;"><input type="checkbox" id="admin-mode" checked> 管理者として投稿</label><br>` : '';
-        const savedName = escapeHTML(localStorage.getItem('user_display_name') || '');
-        
         formHTML = `
             <div style="background:#f4f4f4; padding:15px; border:1px solid #ccc; margin-bottom:20px; border-radius:10px;">
                 <form id="reply-form">
                     <input type="text" id="res-name" value="${savedName}" placeholder="名前" style="margin-bottom:5px;"><br>
                     <input type="text" id="honey-pot" style="display:none !important;" tabindex="-1" autocomplete="off">
                     ${adminToggle}
-                    <textarea id="res-content" placeholder="内容を入力してください（最新が一番上に出ます）" required style="width:95%; height:60px; margin-top:5px;"></textarea><br>
+                    <textarea id="res-content" placeholder="新しい投稿が一番上に表示されます" required style="width:95%; height:60px; margin-top:5px;"></textarea><br>
                     <button type="submit" id="submit-btn" style="margin-top:5px; padding:5px 20px; cursor:pointer;">書き込む</button>
                 </form>
             </div>`;
@@ -98,40 +97,40 @@ function renderPage(thread) {
     updateNotifyButton();
 }
 
-// --- 4. レス一覧取得 (最新を一番上に表示：降順) ---
+// --- 4. レス一覧取得 (ascending: trueで取得して最新を上に並べる) ---
 async function loadPosts() {
     const listArea = document.getElementById('res-list');
     const isAdmin = localStorage.getItem('is_admin') === 'true'; 
     const myID = getPermanentID();
     if (!listArea || !currentThreadData) return;
 
-    // 最新順（降順：ascending: false）で取得。これで最新が配列の[0]に来る。
+    // 昇順(true)で取得（古いものから順に配列に入る）
     const { data: posts, error } = await supabaseClient
         .from('posts')
         .select('*')
         .eq('thread_id', threadId)
-        .order('created_at', { ascending: false }); 
+        .order('created_at', { ascending: true }); 
 
     if (error) {
         console.error("データ取得エラー:", error);
-        return; // エラー時は描画を更新せず、表示が消えるのを防ぐ
+        return; // エラー時は上書きしない（全消え対策）
     }
 
-    // スレ主のデータも配列に混ぜる（一番最後に表示したいので push する）
-    const allItems = [...(posts || [])];
-    allItems.push({
+    // スレ主の本文を配列の最初に入れる
+    const allItems = [{
         id: 'THREAD_ROOT',
         name: currentThreadData.name || "名無しさん",
         content: currentThreadData.content || "",
         created_at: currentThreadData.created_at,
         user_id_display: "OWNER",
-        is_real_owner: true,
-        is_shadow_banned: false
-    });
+        is_real_owner: true
+    }, ...(posts || [])];
 
-    listArea.innerHTML = allItems.map((p) => {
-        // シャドウバン対策：本人か管理者以外には隠す
-        if (p.is_shadow_banned && p.user_id_display !== myID && !isAdmin) return '';
+    let finalHTML = "";
+
+    // 配列をループして、新しいHTMLを「前」に追加していくことで「最新が一番上」にする
+    allItems.forEach((p, index) => {
+        if (p.is_shadow_banned && p.user_id_display !== myID && !isAdmin) return;
 
         const isAdmPost = p.is_admin_only === true;
         const shadowStyle = p.is_shadow_banned ? 'opacity: 0.5; border: 1px dashed gray;' : '';
@@ -146,17 +145,21 @@ async function loadPosts() {
             `;
         }
 
-        return `
+        const postHTML = `
             <div style="padding:15px; margin-bottom:10px; border-radius:5px; ${style} ${shadowStyle}">
                 <div style="font-size:12px; color:#666;">
                     <span style="color:${p.is_real_owner || isAdmPost ? 'red' : '#2ed573'}; font-weight:bold;">${escapeHTML(p.name)}</span>
                     [${new Date(p.created_at).toLocaleString()}] ID:${escapeHTML(p.user_id_display?.substring(0,11))}
-                    ${p.is_shadow_banned ? '<b style="color:orange;">[隔離中]</b>' : ''}
                     ${adminControls}
                 </div>
                 <div style="margin-top:5px; white-space:pre-wrap;">${isAdmPost ? '<b>【運営】</b>' : ''}${escapeHTML(p.content)}</div>
             </div>`;
-    }).join('');
+        
+        // ここで順番を逆転させる（最新を上に積む）
+        finalHTML = postHTML + finalHTML;
+    });
+
+    listArea.innerHTML = finalHTML;
 }
 
 // --- 5. 投稿処理 ---
@@ -165,10 +168,9 @@ async function handlePost(e) {
     const btn = document.getElementById('submit-btn');
     const content = document.getElementById('res-content').value.trim();
     const name = document.getElementById('res-name').value.trim() || "名無しさん";
-    const honey = document.getElementById('honey-pot').value;
     const adminMode = document.getElementById('admin-mode');
 
-    if (honey || !content) return;
+    if (!content) return;
     if (content === lastPostContent) { alert("同じ内容は連投できません。"); return; }
 
     btn.disabled = true;
@@ -187,11 +189,7 @@ async function handlePost(e) {
         lastPostContent = content;
         document.getElementById('res-content').value = "";
         localStorage.setItem('user_display_name', name);
-        let timer = 3; 
-        const itv = setInterval(() => {
-            timer--; btn.innerText = `待機(${timer})`;
-            if (timer <= 0) { clearInterval(itv); btn.disabled = false; btn.innerText = "書き込む"; }
-        }, 1000);
+        setTimeout(() => { btn.disabled = false; btn.innerText = "書き込む"; }, 2000);
     }
 }
 
@@ -202,22 +200,19 @@ function startRealtimeMonitor() {
         .subscribe();
 }
 
-// --- 7. 管理者機能 ---
+// --- 7. 管理機能 ---
 window.toggleShadowBan = async function(event, postId, currentStatus) {
-    if (!confirm(currentStatus ? "解除しますか？" : "シャドウバンしますか？")) return;
-    const { error } = await supabaseClient.from('posts').update({ is_shadow_banned: !currentStatus }).eq('id', postId);
-    if (error) { alert("更新に失敗しました。"); return; }
+    if (!confirm("シャドウバン設定を切り替えますか？")) return;
+    await supabaseClient.from('posts').update({ is_shadow_banned: !currentStatus }).eq('id', postId);
     loadPosts();
 };
 
 window.deletePost = async function(event, postId) {
     if (!confirm("削除しますか？")) return;
-    const { error } = await supabaseClient.from('posts').delete().eq('id', postId);
-    if (error) { alert("削除に失敗しました。"); return; }
+    await supabaseClient.from('posts').delete().eq('id', postId);
     loadPosts(); 
 };
 
-// --- その他通知系 ---
 window.toggleNotification = function() {
     if (!("Notification" in window)) return;
     if (Notification.permission !== "granted") {
