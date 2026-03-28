@@ -31,16 +31,16 @@
       </div>
 
       <script>
-        // 3秒経ってもコンテンツが表示されなければヒントを出す
-        setTimeout(() => {
-          const list = document.getElementById('res-list');
-          if (!list || list.innerText === "読み込み中...") {
-            document.getElementById('loading-hint').style.display = 'block';
-            const msg = document.getElementById('loading-msg');
-            if(msg) msg.style.display = 'none';
-          }
-        }, 3000);
-      </script>
+  // 3秒経ってもコンテンツが表示されなければヒントを出す
+  setTimeout(() => {
+    const list = document.getElementById('res-list');
+    if (!list || list.innerText === "読み込み中...") {
+      document.getElementById('loading-hint').style.display = 'block';
+      const msg = document.getElementById('loading-msg');
+      if(msg) msg.style.display = 'none';
+    }
+  }, 3000);
+</script>
 
       <noscript>
         <p style="color:red;">JavaScriptが無効です。掲示板を利用するにはブラウザの設定でJavaScriptを有効にしてください。</p>
