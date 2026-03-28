@@ -38,7 +38,7 @@ async function init() {
         renderPage(thread);
         await loadPosts();
 
-        // 【追加】通知が許可されていれば、このスレのリアルタイム監視を開始
+        // 通知が許可されていれば監視を開始（実際の通知はisEnabledで判定）
         if (Notification.permission === "granted") {
             startRealtimeMonitor();
         }
@@ -71,7 +71,7 @@ function renderPage(thread) {
     const notifyBtn = `
         <div style="text-align:right; margin-bottom:10px;">
             <button onclick="toggleNotification()" id="notify-btn" style="font-size:11px; padding:3px 10px; cursor:pointer; background:#fff; border:1px solid #ddd; border-radius:20px;">
-                🔔 このスレの通知をオン
+                🔔 通知設定中...
             </button>
         </div>`;
 
@@ -133,52 +133,64 @@ async function loadPosts() {
     } catch (e) { listArea.innerHTML = "エラー: " + e.message; }
 }
 
-// --- 5. リアルタイム監視（このスレのみ） ---
+// --- 5. リアルタイム監視 ---
 function startRealtimeMonitor() {
-    if (!supabaseClient || !threadId) return;
-
-    supabaseClient
-        .channel(`thread-${threadId}`)
-        .on('postgres_changes', { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'posts', 
-            filter: `thread_id=eq.${threadId}` 
-        }, (payload) => {
-            const p = payload.new;
-            // 通知を送る
-            if (Notification.permission === "granted") {
-                new Notification(`新着レス (${currentThreadData.title})`, {
-                    body: `${p.name}: ${p.content.substring(0, 30)}...`
-                });
-            }
-            // 画面を更新
-            loadPosts();
-        })
-        .subscribe();
+    supabaseClient.channel(`thread-${threadId}`).on('postgres_changes', { 
+        event: 'INSERT', schema: 'public', table: 'posts', filter: `thread_id=eq.${threadId}` 
+    }, (payload) => {
+        
+        // 【重要】オンの時だけ通知
+        const isEnabled = localStorage.getItem('notify_enabled') === 'true';
+        if (isEnabled && Notification.permission === "granted") {
+            new Notification(`新着: ${currentThreadData.title}`, { 
+                body: `${payload.new.name}: ${payload.new.content}` 
+            });
+        }
+        
+        loadPosts(); 
+    }).subscribe();
 }
 
-// --- 6. 通知設定・削除・投稿 ---
+// --- 6. 通知オン・オフ切り替え ---
 window.toggleNotification = function() {
     if (!("Notification" in window)) return alert("非対応ブラウザです");
-    Notification.requestPermission().then(permission => {
-        if (permission === "granted") {
-            updateNotifyButton();
-            startRealtimeMonitor();
-            alert("このスレッドの通知がオンになりました");
-        }
-    });
+
+    if (Notification.permission !== "granted") {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                localStorage.setItem('notify_enabled', 'true');
+                updateNotifyButton();
+                startRealtimeMonitor();
+            }
+        });
+        return;
+    }
+
+    // オンオフを反転
+    const isNowEnabled = localStorage.getItem('notify_enabled') === 'true';
+    localStorage.setItem('notify_enabled', !isNowEnabled);
+    updateNotifyButton();
 };
 
 function updateNotifyButton() {
     const btn = document.getElementById('notify-btn');
-    if (btn && Notification.permission === "granted") {
-        btn.innerHTML = "🔕 通知オン(このスレ)";
+    if (!btn) return;
+
+    const isEnabled = localStorage.getItem('notify_enabled') === 'true';
+    if (Notification.permission === "granted" && isEnabled) {
+        btn.innerHTML = "🔔 通知：オン";
         btn.style.background = "#e1ffed";
+        btn.style.color = "#2ed573";
         btn.style.borderColor = "#2ed573";
+    } else {
+        btn.innerHTML = "🔕 通知：オフ";
+        btn.style.background = "#fff5f5";
+        btn.style.color = "#ff4757";
+        btn.style.borderColor = "#ff4757";
     }
 }
 
+// --- 7. 削除・投稿 ---
 window.deletePost = async function(postId) {
     if (!confirm("削除しますか？") || !supabaseClient) return;
     await supabaseClient.from('posts').delete().eq('id', postId);

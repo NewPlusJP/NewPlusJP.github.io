@@ -102,23 +102,50 @@ if (threadForm) {
   });
 }
 
-// --- 4. 通知設定（許可のみ・暴走防止） ---
+// --- 4. 通知設定（オン・オフ切り替え対応） ---
 window.toggleNotification = function() {
-    if (!("Notification" in window)) return alert("非対応です");
-    Notification.requestPermission().then(permission => {
-        if (permission === "granted") {
-            alert("通知が有効になりました。各スレッド内で新着通知を受け取れます。");
-            updateNotifyButton();
-        }
-    });
+    if (!("Notification" in window)) return alert("非対応ブラウザです");
+
+    // ブラウザの許可をまず確認
+    if (Notification.permission !== "granted") {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                // 初回許可時は自動でオンにする
+                localStorage.setItem('notify_enabled', 'true');
+                alert("通知を有効にしました！");
+                updateNotifyButton();
+            }
+        });
+        return;
+    }
+
+    // すでに許可されている場合は、サイト内の設定を反転させる
+    const isEnabled = localStorage.getItem('notify_enabled') === 'true';
+    if (isEnabled) {
+        localStorage.setItem('notify_enabled', 'false');
+        alert("通知を【オフ】にしました。");
+    } else {
+        localStorage.setItem('notify_enabled', 'true');
+        alert("通知を【オン】にしました！");
+    }
+    updateNotifyButton();
 };
 
 function updateNotifyButton() {
     const btn = document.getElementById('notify-btn-top');
-    if (btn && Notification.permission === "granted") {
-        btn.innerHTML = "✅ 通知許可済み";
-        btn.style.background = "#eee";
-        btn.style.color = "#888";
+    if (!btn) return;
+
+    const isEnabled = localStorage.getItem('notify_enabled') === 'true';
+    const isPermissionGranted = Notification.permission === "granted";
+
+    if (isPermissionGranted && isEnabled) {
+        btn.innerHTML = "🔔 通知：オン (クリックでオフ)";
+        btn.style.background = "#e1ffed"; // 緑っぽく
+        btn.style.color = "#2ed573";
+    } else {
+        btn.innerHTML = "🔕 通知：オフ (クリックでオン)";
+        btn.style.background = "#fff5f5"; // 赤っぽく
+        btn.style.color = "#ff4757";
     }
 }
 
