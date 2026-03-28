@@ -65,6 +65,9 @@
         <label for="thread-title">スレッドタイトル</label>
         <input type="text" id="thread-title" placeholder="タイトルを入力してください" required>
       </div>
+      
+      <input type="text" id="honey-pot" style="display:none !important;" tabindex="-1" autocomplete="off">
+      
       <div id="admin-thread-option"></div>
       <div class="form-group-inner">
         <label for="user-name">名前（省略可）</label>
@@ -89,7 +92,7 @@
   <script src="bbs.js"></script>
 
   <script>
-    // --- エスケープ関数（インラインスクリプト用） ---
+    // --- ユーティリティ ---
     function escapeHTML(str) {
       if (!str) return "";
       return String(str).replace(/[&<>"']/g, m => ({
@@ -97,7 +100,7 @@
       }[m]));
     }
 
-    // ダークモードのトグル
+    // テーマ切り替え
     function toggleDarkMode() {
       const html = document.documentElement;
       const current = html.getAttribute('data-theme');
@@ -110,8 +113,9 @@
       document.body.style.color = isDark ? '#f0f0f0' : '#333';
     }
 
-    // 読み込み時にテーマを復元
+    // 初期化処理
     document.addEventListener('DOMContentLoaded', () => {
+      // テーマ復元
       const savedTheme = localStorage.getItem('theme');
       if (savedTheme === 'dark') {
         document.documentElement.setAttribute('data-theme', 'dark');
@@ -119,12 +123,11 @@
         document.body.style.color = '#f0f0f0';
       }
 
-      // オンラインカウンターの数字をセットする際も念のため
+      // オンラインカウンター（デコレーション）
       const counterEl = document.getElementById('online-counter');
       if (counterEl) {
-          // ランダムな数字を表示（ここにはユーザー入力は入らないが、作法として）
-          const num = Math.floor(Math.random() * 5) + 1;
-          counterEl.innerText = `現在 ${num} 人が閲覧中`;
+        const num = Math.floor(Math.random() * 8) + 1;
+        counterEl.innerText = `現在 ${num} 人が閲覧中`;
       }
     });
   </script>
