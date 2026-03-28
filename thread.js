@@ -1,18 +1,17 @@
 // --- 1. 初期化 ---
-// index.html側で読み込んでいるので SUPABASE_URL 等はそのまま使える想定
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const urlParams = new URLSearchParams(window.location.search);
 const threadId = urlParams.get('id');
 
 let currentThreadData = null; 
 
-// 通知許可（おまけ機能）
+// 通知許可
 async function requestNotification() {
   const permission = await Notification.requestPermission();
   if (permission === 'granted') alert('通知ONになったよ！');
 }
 
-// ユーザーごとに変わるID生成（日付が変わるとIDも変わる仕組み）
+// ID生成
 function generateID() {
   const date = new Date().toISOString().slice(0, 10);
   let userSecret = localStorage.getItem('user_uuid_seed') || (Math.random().toString(36).substring(2) + Date.now().toString(36));
@@ -45,17 +44,14 @@ async function loadSingleThread() {
   currentThreadData = thread; 
   const isAdmin = localStorage.getItem('is_admin') === 'true';
 
-  // 運営専用マーク
   const adminThreadMark = thread.is_admin_thread ? '<span style="font-size:0.6em; background:#ff4757; color:#fff; padding:2px 5px; border-radius:4px; vertical-align:middle; margin-right:5px;">運営専用</span>' : '';
 
-  // 管理者のみ表示されるオプション
   const adminOnlyToggle = isAdmin ? `
     <label style="display:inline-block; margin: 5px 0; color: #ff4757; font-weight: bold; cursor: pointer; background: #fff; padding: 5px 10px; border-radius: 10px; border: 1px solid #ff4757;">
       <input type="checkbox" id="admin-only-chat"> 🔒 管理者のみ発言可モード
     </label>
   ` : '';
 
-  // フォーム部分の判定
   let formHTML = '';
   if (thread.is_admin_thread && !isAdmin) {
     formHTML = `
@@ -97,7 +93,7 @@ async function loadSingleThread() {
   await loadPostsInThread(); 
 }
 
-// --- 3. レス表示 ---
+// --- 3. レス表示（最新が一番上） ---
 async function loadPostsInThread() {
   const postList = document.getElementById('res-list');
   if (!postList || !currentThreadData) return;
@@ -105,32 +101,39 @@ async function loadPostsInThread() {
   postList.innerHTML = '<div style="color:#666; font-size:0.9em; padding:10px;">データを取得中...</div>';
 
   try {
+    // 最新順に取得
     const { data: posts, error } = await supabaseClient
       .from('posts')
       .select('*')
       .eq('thread_id', threadId)
-      .order('created_at', { ascending: true }); // ID順（古い順）に並べる
+      .order('created_at', { ascending: false }); 
 
     if (error) throw error;
 
-    // 1番目（スレ主の投稿）を手動で追加
-    let allPosts = [{
+    // スレ主の投稿（1番）
+    const ownerPost = {
       name: currentThreadData.name,
       content: currentThreadData.content,
       created_at: currentThreadData.created_at,
       user_id_display: "OWNER",
       is_owner: true
-    }, ...(posts || [])];
+    };
+
+    // 最新レスを上、一番下にスレ主を結合
+    let allPosts = [...(posts || []), ownerPost];
 
     postList.innerHTML = allPosts.map((post, index) => {
       const isSecretMode = post.is_admin_only === true; 
-      const specialStyle = isSecretMode ? 'background:#fff9e6; border-left:5px solid #ff4757; padding:10px; border-radius:5px;' : 'padding:10px; border-bottom:1px solid #eee;';
+      const specialStyle = isSecretMode ? 'background:rgba(255, 71, 87, 0.05); border-left:5px solid #ff4757; padding:10px; border-radius:5px;' : 'padding:10px; border-bottom:1px solid #eee;';
       const adminLabel = isSecretMode ? '<span style="color:#ff4757; font-weight:bold;">【運営からのお知らせ】</span>' : '';
       const nameColor = post.is_owner ? '#ff0000' : '#2ed573';
       
+      // レス番号の逆算（一番下のスレ主が1になるように）
+      const resNum = allPosts.length - index;
+      
       return `
         <div style="margin-bottom: 10px; ${specialStyle}">
-          <span style="font-weight:bold;">${index + 1} ：</span>
+          <span style="font-weight:bold;">${resNum} ：</span>
           <span style="color:${nameColor}; font-weight:bold;">${post.name}</span> 
           <small>：${new Date(post.created_at).toLocaleString()} ID:${post.user_id_display || '???'}</small>
           <div style="margin-top:8px; white-space:pre-wrap;">${adminLabel}${post.content}</div>
@@ -183,13 +186,13 @@ async function postReplyInThread(event) {
   submitBtn.innerText = "書き込む";
 }
 
-// --- 5. お掃除（最新20件だけ残す） ---
+// --- 5. お掃除（最新20件） ---
 async function cleanOldPosts() {
   const { data } = await supabaseClient
     .from('posts')
     .select('id')
     .eq('thread_id', threadId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false });
 
   if (data && data.length > 20) {
     const idsToDelete = data.slice(20).map(p => p.id);
@@ -198,7 +201,6 @@ async function cleanOldPosts() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // ダークモード適用
   if (localStorage.getItem('theme') === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
   }
