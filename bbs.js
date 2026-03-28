@@ -2,7 +2,6 @@
 const SUPABASE_URL = "https://ezishztrukqnrqsvaeur.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6aXNoenRydWtxbnJxc3ZhZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MTY3MzIsImV4cCI6MjA5MDA5MjczMn0.u9rkxviylgWDoI3-FExNq1EPOT_NNNNuwkLT2FLRKUU";
 
-// 追跡防止対策：ライブラリが存在するかチェックしてから初期化
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 // --- 1. スレッド一覧表示 ---
@@ -11,7 +10,7 @@ async function loadThreads() {
   if (!container) return;
 
   if (!supabaseClient) {
-    container.innerHTML = '<div class="aa" style="border:1px solid red; padding:10px;">⚠️ ブラウザの制限によりSupabaseに接続できません。追跡防止機能をオフにしてください。</div>';
+    container.innerHTML = '<div class="aa" style="border:1px solid red; padding:10px;">⚠️ ブラウザの制限によりSupabaseに接続できません。</div>';
     return;
   }
 
@@ -32,10 +31,7 @@ async function loadThreads() {
     return;
   }
 
-  // ピン留め優先の並び替え
-  const sortedThreads = [...threads].sort((a, b) => {
-    return (b.is_admin_thread ? 1 : 0) - (a.is_admin_thread ? 1 : 0);
-  });
+  const sortedThreads = [...threads].sort((a, b) => (b.is_admin_thread ? 1 : 0) - (a.is_admin_thread ? 1 : 0));
 
   container.innerHTML = sortedThreads.map(thread => {
     const isSpecial = thread.is_admin_thread === true;
@@ -73,11 +69,6 @@ window.handleAdminLogin = async function() {
   const name = nameInput.value.trim();
   const pass = passInput.value.trim();
 
-  if (!name || !pass) {
-    alert("管理者名とパスワードを入力してください");
-    return;
-  }
-
   const { data, error } = await supabaseClient
     .from('user_accounts')
     .select('*')
@@ -85,12 +76,6 @@ window.handleAdminLogin = async function() {
     .eq('password', pass)
     .maybeSingle();
 
-  if (error) {
-    alert("エラー: " + error.message);
-    return;
-  }
-
-  // 名前がadminで始まる制限を維持
   if (data && name.toLowerCase().startsWith('admin')) {
     alert("管理者認証に成功しました！");
     localStorage.setItem('is_admin', 'true');
@@ -98,23 +83,17 @@ window.handleAdminLogin = async function() {
     localStorage.setItem('user_display_name', name);
     location.reload();
   } else {
-    alert("認証失敗：名前がadminで始まっていないか、情報が正しくありません。");
+    alert("認証失敗：情報が正しくありません。");
   }
 };
 
 // --- 3. 削除機能 (スレッドごと) ---
 window.deleteThread = async function(id) {
-  if (!confirm("このスレッドと全てのレスを完全に削除しますか？")) return;
-  if (!supabaseClient) return;
-
+  if (!confirm("完全に削除しますか？")) return;
   try {
-    // 1. 紐づくレスを削除 (SQLにON DELETE CASCADEがあれば自動ですが、念のため)
     await supabaseClient.from('posts').delete().eq('thread_id', id);
-    // 2. スレッド自体を削除
     const { error } = await supabaseClient.from('threads').delete().eq('id', id);
-    
     if (error) throw error;
-    alert("スレッドを削除しました。");
     location.reload();
   } catch (err) {
     alert("削除失敗: " + err.message);
@@ -126,8 +105,6 @@ const threadForm = document.getElementById('thread-form');
 if (threadForm) {
   threadForm.addEventListener('submit', async function(e) {
     e.preventDefault();
-    if (!supabaseClient) return;
-
     const title = document.getElementById('thread-title').value;
     const name = document.getElementById('user-name').value || "名無しさん";
     const content = document.getElementById('content').value;
@@ -142,12 +119,47 @@ if (threadForm) {
     if (error) {
       alert("失敗: " + error.message);
     } else if (data && data.length > 0) {
+      // スレ立て成功時に通知を送る
+      sendPushNotification("新しいスレッド", title);
       window.location.href = `thread.html?id=${data[0].id}`;
     }
   });
 }
 
-// --- 5. UI更新系 ---
+// --- 5. 通知機能 (thread.jsと共通) ---
+window.toggleNotification = function() {
+    if (!("Notification" in window)) {
+        alert("お使いのブラウザは通知に対応していません。");
+        return;
+    }
+    Notification.requestPermission().then(permission => {
+        if (permission === "granted") {
+            alert("通知が有効になりました！");
+            updateNotifyButton();
+        } else {
+            alert("通知がブロックされています。ブラウザの設定で許可してください。");
+        }
+    });
+};
+
+function updateNotifyButton() {
+    // index.htmlに id="notify-btn-top" というボタンがある前提
+    const btn = document.getElementById('notify-btn-top');
+    if (!btn) return;
+    if (Notification.permission === "granted") {
+        btn.innerHTML = "🔕 通知は有効です";
+        btn.style.background = "#e1ffed";
+        btn.style.borderColor = "#2ed573";
+    }
+}
+
+function sendPushNotification(title, content) {
+    if (Notification.permission === "granted") {
+        new Notification(title, { body: content });
+    }
+}
+
+// --- 6. UI更新・初期化 ---
 function checkAdminStatus() {
   const isAdmin = localStorage.getItem('is_admin') === 'true';
   const adminConsole = document.getElementById('admin-console');
@@ -171,48 +183,19 @@ function checkAdminStatus() {
   }
 }
 
-function updateAuthDisplay() {
-  const userName = localStorage.getItem('user_display_name');
-  const authStatusDiv = document.getElementById('auth-status');
-  const nameInput = document.getElementById('user-name');
-
-  if (userName && authStatusDiv) {
-    authStatusDiv.innerHTML = `
-      <span style="font-weight:bold; color:#2ed573;">● ログイン中: ${userName}さん</span>
-      <button onclick="logout()" style="margin-left:10px; font-size:0.8em; cursor:pointer;">ログアウト</button>
-    `;
-    if (nameInput) {
-      nameInput.value = userName;
-      nameInput.readOnly = true; 
-      nameInput.style.background = "#eee";
-    }
-  }
-}
-
-window.logout = function() {
-  localStorage.clear();
-  location.reload();
-};
-
-// --- 6. ダークモード・初期化 ---
-window.toggleDarkMode = function() {
-  const html = document.documentElement;
-  const isDark = html.getAttribute('data-theme') === 'dark';
-  const nextTheme = isDark ? 'light' : 'dark';
-  html.setAttribute('data-theme', nextTheme);
-  localStorage.setItem('theme', nextTheme);
-};
-
 document.addEventListener('DOMContentLoaded', () => {
-  const savedTheme = localStorage.getItem('theme');
-  if (savedTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-
   loadThreads();
   checkAdminStatus();
-  updateAuthDisplay();
+  updateNotifyButton(); // ページ読み込み時にボタン状態を更新
   
+  // オンラインカウンター
   const counterEl = document.getElementById('online-counter');
   if (counterEl) {
     counterEl.innerText = `現在 ${Math.floor(Math.random() * 5) + 1} 人が閲覧中`;
   }
 });
+
+window.logout = function() {
+  localStorage.clear();
+  location.reload();
+};

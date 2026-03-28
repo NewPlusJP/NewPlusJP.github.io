@@ -21,11 +21,12 @@
     <h1>広告</h1>
     <div class="aa">
       <div id="onecolor"><h2>のもさーばー</h2></div>
-　　　　<h3>Discord botの支援などをしています！</h3>
-          <h4>鯖内容</h4>
-            <p>雑談やbot開発などを主にしています
-<B>Discord botを作りたいけど作り方がわからない方</B>や<B>Discord botを動かしたいけどサーバーがない方</B>はぜひ参加お願いします！
-<a href="https://discord.gg/qrDwaP5Kst">ここから参加！</a></p>
+      <h3>Discord botの支援などをしています！</h3>
+      <h4>鯖内容</h4>
+      <p>雑談やbot開発などを主にしています
+        <B>Discord botを作りたいけど作り方がわからない方</B>や<B>Discord botを動かしたいけどサーバーがない方</B>はぜひ参加お願いします！
+        <a href="https://discord.gg/qrDwaP5Kst">ここから参加！</a>
+      </p>
     </div>
   </div>
 
@@ -33,7 +34,13 @@
     <h2>エントランス</h2>
     <a href="rule.html" style="font-size: 1.2em; font-weight: bold;">■ 【重要】利用規約</a><br>
     <a href="threadlist.html" style="font-size: 1.2em; font-weight: bold;">■ 掲示板に入る（スレッド一覧）</a><br>
-    <button onclick="toggleDarkMode()" id="dark-mode-btn">🌙 モード切替</button>
+    
+    <div style="margin-top: 15px;">
+      <button onclick="toggleDarkMode()" id="dark-mode-btn">🌙 モード切替</button>
+      <button onclick="toggleNotification()" id="notify-btn-top" style="margin-left: 10px; cursor: pointer; padding: 5px 12px; border-radius: 5px; border: 1px solid #ccc; background: #fff;">
+        🔔 通知をオンにする
+      </button>
+    </div>
   </div>
 
   <section class="aa" id="admin-section">
@@ -82,7 +89,7 @@
   <script src="bbs.js"></script>
 
   <script>
-    // ダークモードのトグル（bbs.jsの外にあるので一応残す）
+    // ダークモードのトグル
     function toggleDarkMode() {
       const html = document.documentElement;
       const current = html.getAttribute('data-theme');
@@ -90,7 +97,6 @@
       html.setAttribute('data-theme', next);
       localStorage.setItem('theme', next);
       
-      // ボディのスタイルも直接変える（旧仕様への互換性）
       if (next === 'dark') {
         document.body.style.backgroundColor = '#1a1a1a';
         document.body.style.color = '#f0f0f0';

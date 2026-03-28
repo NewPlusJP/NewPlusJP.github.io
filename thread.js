@@ -70,11 +70,20 @@ function renderPage(thread) {
             </div>`;
     }
 
+    // 通知ボタンのHTMLを追加
+    const notifyBtn = `
+        <div style="text-align:right; margin-bottom:10px;">
+            <button onclick="toggleNotification()" id="notify-btn" style="font-size:11px; padding:3px 10px; cursor:pointer; background:#fff; border:1px solid #ddd; border-radius:20px;">
+                🔔 通知オンにする
+            </button>
+        </div>`;
+
     container.innerHTML = `
         <div class="aa">
             <h2 style="color:${thread.is_admin_thread ? '#ff4757' : 'inherit'}; border-bottom:2px solid #ddd; padding-bottom:5px;">
                 ${thread.is_admin_thread ? '📌' : ''} ${thread.title}
             </h2>
+            ${notifyBtn}
             ${formHTML}
             <div id="res-list">読み込み中...</div>
             <p style="text-align:center; margin-top:20px;"><a href="index.html">【トップに戻る】</a></p>
@@ -84,6 +93,9 @@ function renderPage(thread) {
     if (document.getElementById('reply-form')) {
         document.getElementById('reply-form').addEventListener('submit', handlePost);
     }
+    
+    // 通知ボタンの状態を初期更新
+    updateNotifyButton();
 }
 
 // --- 4. レス一覧の取得 ---
@@ -107,7 +119,7 @@ async function loadPosts() {
             created_at: currentThreadData.created_at,
             user_id_display: "OWNER",
             is_owner: true,
-            id: null // スレ主は物理削除対象外
+            id: null
         };
 
         const allItems = [...(posts || []), ownerItem];
@@ -117,7 +129,6 @@ async function loadPosts() {
             const isAdm = p.is_admin_only === true;
             const style = isAdm ? 'background:#fff5f5; border-left:5px solid #ff4757;' : 'border-bottom:1px solid #eee;';
             
-            // 管理者の場合のみ削除ボタンを表示
             const deleteBtn = (isAdmin && !p.is_owner) 
                 ? `<button onclick="deletePost(${p.id})" style="color:red; font-size:10px; margin-left:10px; cursor:pointer; background:none; border:1px solid red; border-radius:3px; padding:2px 5px;">[削除]</button>` 
                 : '';
@@ -151,11 +162,47 @@ window.deletePost = async function(postId) {
     if (error) {
         alert("削除に失敗しました: " + error.message);
     } else {
-        await loadPosts(); // 一覧を更新
+        await loadPosts();
     }
 };
 
-// --- 6. 投稿処理 ---
+// --- 6. 通知機能 ---
+window.toggleNotification = function() {
+    if (!("Notification" in window)) {
+        alert("お使いのブラウザは通知に対応していません。");
+        return;
+    }
+
+    Notification.requestPermission().then(permission => {
+        if (permission === "granted") {
+            alert("通知が有効になりました。");
+            updateNotifyButton();
+        } else {
+            alert("通知がブロックされました。ブラウザの設定から許可してください。");
+        }
+    });
+};
+
+function updateNotifyButton() {
+    const btn = document.getElementById('notify-btn');
+    if (!btn) return;
+    if (Notification.permission === "granted") {
+        btn.innerHTML = "🔕 通知は有効です";
+        btn.style.background = "#e1ffed";
+        btn.style.borderColor = "#2ed573";
+    }
+}
+
+function sendPushNotification(name, content) {
+    if (Notification.permission === "granted") {
+        new Notification(`新着レス: ${name}さん`, {
+            body: content,
+            icon: "favicon.ico" // 自分のサイトのアイコンがあればパスを指定
+        });
+    }
+}
+
+// --- 7. 投稿処理 ---
 async function handlePost(e) {
     e.preventDefault();
     if (!supabaseClient) return;
@@ -184,6 +231,9 @@ async function handlePost(e) {
     if (error) {
         alert("投稿失敗: " + error.message);
     } else {
+        // 自分の投稿完了時にも通知を出す（テスト用）
+        sendPushNotification(name, content);
+        
         document.getElementById('res-content').value = "";
         await loadPosts();
     }
