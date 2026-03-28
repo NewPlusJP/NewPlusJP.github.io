@@ -1,36 +1,31 @@
 <!DOCTYPE html>
-
 <html lang="ja">
-
 <head>
-
   <meta charset="UTF-8">
-
   <title>スレッド詳細 - NewPlusJP</title>
-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <link rel="stylesheet" href="style.css">
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
+  <script 
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" 
+    crossorigin="anonymous"
+  ></script>
 </head>
-
 <body>
 
   <header>
-
     <h1><a href="index.html" style="color:white; text-decoration:none;">NewPlusJP</a></h1>
-
   </header>
 
-
-
-
-
   <div id="single-thread-container">
-
-    <div class="aa"><p>読み込み中...</p></div>
-
+    <div class="aa">
+      <p style="color:#666;">データを読み込んでいます...</p>
+      <noscript>JavaScriptを有効にしてください。</noscript>
+    </div>
   </div>
 
+  <script src="config.js"></script> 
+  <script src="thread.js"></script>
+
+</body>
+</html>
