@@ -8,7 +8,7 @@ function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
-// --- 1. スレッド一覧表示 (安定化版) ---
+// --- 1. スレッド一覧表示 (修正：運営固定＋新着順) ---
 async function loadThreads() {
   const container = document.getElementById('thread-container');
   if (!container || !supabaseClient) return;
@@ -26,7 +26,18 @@ async function loadThreads() {
     return;
   }
 
-  const sortedThreads = [...threads].sort((a, b) => (b.is_admin_thread ? 1 : 0) - (a.is_admin_thread ? 1 : 0));
+  // ★ここを修正：運営スレを優先しつつ、同じ優先度内では日付順（新着順）を維持する
+  const sortedThreads = [...threads].sort((a, b) => {
+    // 運営スレかどうかの重み付け
+    const aWeight = a.is_admin_thread ? 1 : 0;
+    const bWeight = b.is_admin_thread ? 1 : 0;
+    
+    if (bWeight !== aWeight) {
+      return bWeight - aWeight; // 運営スレ(1)を通常(0)より上に
+    }
+    // 運営同士、または通常同士の場合は、元の降順（created_at）を維持する
+    return 0; 
+  });
 
   container.innerHTML = sortedThreads.map(thread => {
     const isSpecial = thread.is_admin_thread === true;
@@ -134,7 +145,7 @@ function checkAdminStatus() {
   }
 }
 
-// --- 4. 通知機能 (復活) ---
+// --- 4. 通知機能 ---
 function renderNotifyButton() {
   const adminConsole = document.getElementById('admin-console');
   if (!adminConsole) return;
@@ -176,7 +187,7 @@ function startThreadWatch() {
   supabaseClient
     .channel('public:threads_watch')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'threads' }, payload => {
-      loadThreads(); // 一覧更新
+      loadThreads(); 
       const isEnabled = localStorage.getItem('notify_enabled') === 'true';
       if (isEnabled && Notification.permission === "granted") {
         new Notification("新着スレッド！", { body: payload.new.title });
@@ -189,6 +200,6 @@ function startThreadWatch() {
 document.addEventListener('DOMContentLoaded', () => {
   loadThreads();
   checkAdminStatus();
-  renderNotifyButton(); // 追加
-  startThreadWatch();   // 追加
+  renderNotifyButton();
+  startThreadWatch();
 });
