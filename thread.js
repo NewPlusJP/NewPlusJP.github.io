@@ -14,7 +14,7 @@ function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
-// --- 1. メイン読み込み & UI生成 ---
+// --- 1. メイン読み込み ---
 async function loadEverything() {
   const mainContainer = document.getElementById('single-thread-container');
   if (!mainContainer || !supabaseClient || !threadId) return;
@@ -77,7 +77,7 @@ async function loadEverything() {
 function setupFormListener() {
   const form = document.getElementById('post-form');
   if (!form) return;
-  form.onsubmit = async (e) => { // 重複登録防止のため onsubmit を使用
+  form.onsubmit = async (e) => {
     e.preventDefault();
     const btn = document.getElementById('post-submit-btn');
     const name = document.getElementById('user-name').value.trim() || "名無しさん";
@@ -85,30 +85,28 @@ function setupFormListener() {
     if (!content) return;
 
     btn.disabled = true;
-    btn.innerText = "送信中...";
     await supabaseClient.from('posts').insert([{ thread_id: threadId, name, content }]);
-    document.getElementById('post-content').value = ""; // 送信後クリア
+    document.getElementById('post-content').value = "";
     btn.disabled = false;
-    btn.innerText = "書き込む";
   };
 }
 
-// --- 3. ★リアルタイム監視機能 (ここが重要！) ---
+// --- 3. リアルタイム監視 (復活！) ---
 function startWatching() {
   if (!supabaseClient || !threadId) return;
 
   supabaseClient
-    .channel(`realtime:thread:${threadId}`)
+    .channel('posts_realtime')
     .on('postgres_changes', { 
       event: 'INSERT', 
       schema: 'public', 
       table: 'posts', 
       filter: `thread_id=eq.${threadId}` 
     }, (payload) => {
-      console.log("新着メッセージあり！");
-      loadEverything(); // 新しい投稿があったら自動で再読み込み
+      // 新しい投稿が来たら再読み込みして表示を更新
+      loadEverything();
       
-      // 通知がオンならデスクトップ通知を出す
+      // 通知用
       const isEnabled = localStorage.getItem('notify_enabled') === 'true';
       if (isEnabled && Notification.permission === "granted") {
         new Notification("新着レス！", { body: payload.new.content });
@@ -117,9 +115,8 @@ function startWatching() {
     .subscribe();
 }
 
-// --- 4. 通知機能 ---
+// --- 4. 通知設定 ---
 window.toggleNotification = async function() {
-  if (!("Notification" in window)) return;
   if (Notification.permission !== "granted") await Notification.requestPermission();
   const isEnabled = localStorage.getItem('notify_enabled') === 'true';
   localStorage.setItem('notify_enabled', !isEnabled);
@@ -132,11 +129,10 @@ function updateNotifyBtnStatus() {
   const isEnabled = localStorage.getItem('notify_enabled') === 'true';
   btn.innerHTML = isEnabled ? "🔔 通知：オン" : "🔕 通知：オフ";
   btn.style.backgroundColor = isEnabled ? "#e1ffed" : "#fff";
-  btn.style.color = isEnabled ? "#27ae60" : "#666";
 }
 
 // 起動
 document.addEventListener('DOMContentLoaded', () => {
   loadEverything();
-  startWatching(); // 監視開始
+  startWatching();
 });
