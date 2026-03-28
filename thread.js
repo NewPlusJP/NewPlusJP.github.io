@@ -13,7 +13,6 @@ const threadId = urlParams.get('id');
 let currentThreadData = null;
 let lastPostContent = ""; 
 
-// ブラウザ固有ID (UUID)
 function getPermanentID() {
     if (localStorage.getItem('is_admin') === 'true') {
         return "ADMIN-" + localStorage.getItem('admin_name');
@@ -84,28 +83,24 @@ function renderPage(thread) {
             <h2 style="color:${thread.is_admin_thread ? '#ff4757' : 'inherit'}; border-bottom:2px solid #ddd; padding-bottom:5px;">
                 ${thread.is_admin_thread ? '📌' : ''} ${safeTitle}
             </h2>
-            <div style="text-align:right; margin-bottom:10px;">
-                <button onclick="toggleNotification()" id="notify-btn" style="font-size:11px; padding:3px 10px; cursor:pointer; background:#fff; border:1px solid #ddd; border-radius:20px;">通知設定</button>
-            </div>
-            ${formHTML}
             <div id="res-list">読み込み中...</div>
+            ${formHTML}
             <p style="text-align:center; margin-top:20px;"><a href="index.html">【トップに戻る】</a></p>
         </div>`;
 
     if (document.getElementById('reply-form')) {
         document.getElementById('reply-form').addEventListener('submit', handlePost);
     }
-    updateNotifyButton();
 }
 
-// --- 4. レス一覧取得 (最新レスを一番上に固定する修正版) ---
+// --- 4. レス一覧取得 (最新が一番下に来る：昇順設定) ---
 async function loadPosts() {
     const listArea = document.getElementById('res-list');
     const isAdmin = localStorage.getItem('is_admin') === 'true'; 
     const myID = getPermanentID();
     if (!listArea || !currentThreadData) return;
 
-    // 最新順（降順）で取得
+    // 昇順（ascending: true）＝ 古い順。これで最新が一番下になる
     const { data: posts, error } = await supabaseClient
         .from('posts')
         .select('*')
@@ -114,10 +109,10 @@ async function loadPosts() {
 
     if (error) {
         console.error("データ取得エラー:", error);
-        return; // エラー時は上書きせず前の表示を維持
+        return; 
     }
 
-    // --- A. まずスレ主（1番）のHTMLを作る ---
+    // スレ主（1番）
     const ownerHTML = `
         <div style="padding:10px; margin-bottom:5px; border-bottom:2px solid #ddd; background: #fffcf0;">
             <div style="font-size:12px; color:#666;">
@@ -127,11 +122,11 @@ async function loadPosts() {
             <div style="margin-top:5px; white-space:pre-wrap;">${escapeHTML(currentThreadData.content)}</div>
         </div>`;
 
-    // --- B. 次にレス（2番以降）のHTMLを生成 ---
-    const postsHTML = (posts || []).map((p) => {
-        // シャドウバン判定
+    // レス（2番目以降）
+    const postsHTML = (posts || []).map((p, index) => {
         if (p.is_shadow_banned && p.user_id_display !== myID && !isAdmin) return '';
 
+        const num = index + 2; // スレ主が1なので2からスタート
         const isAdmPost = p.is_admin_only === true;
         const shadowStyle = p.is_shadow_banned ? 'opacity: 0.5; border: 1px dashed gray;' : '';
         const style = isAdmPost ? 'background:#fff5f5; border-left:5px solid #ff4757;' : 'border-bottom:1px solid #eee;';
@@ -148,20 +143,18 @@ async function loadPosts() {
         return `
             <div style="padding:10px; margin-bottom:5px; ${style} ${shadowStyle}">
                 <div style="font-size:12px; color:#666;">
-                    <b>RES</b> : <span style="color:${isAdmPost ? 'red' : '#2ed573'}; font-weight:bold;">${escapeHTML(p.name)}</span>
+                    <b>${num}</b> : <span style="color:${isAdmPost ? 'red' : '#2ed573'}; font-weight:bold;">${escapeHTML(p.name)}</span>
                     [${new Date(p.created_at).toLocaleString()}] ID:${escapeHTML(p.user_id_display?.substring(0,11))}
-                    ${p.is_shadow_banned ? '<b style="color:orange;">[隔離中]</b>' : ''}
                     ${adminControls}
                 </div>
                 <div style="margin-top:5px; white-space:pre-wrap;">${isAdmPost ? '<b>【運営】</b>' : ''}${escapeHTML(p.content)}</div>
             </div>`;
     }).join('');
 
-    // スレ主(1番) + 最新レスの順で合体
     listArea.innerHTML = ownerHTML + postsHTML;
 }
 
-// --- 5. 投稿処理 (連投・待機) ---
+// --- 5. 投稿処理 ---
 async function handlePost(e) {
     e.preventDefault();
     const btn = document.getElementById('submit-btn');
@@ -189,7 +182,7 @@ async function handlePost(e) {
         lastPostContent = content;
         document.getElementById('res-content').value = "";
         localStorage.setItem('user_display_name', name);
-        let timer = 3; 
+        let timer = 3;
         const itv = setInterval(() => {
             timer--; btn.innerText = `待機(${timer})`;
             if (timer <= 0) { clearInterval(itv); btn.disabled = false; btn.innerText = "書き込む"; }
@@ -207,36 +200,14 @@ function startRealtimeMonitor() {
 // --- 7. 管理者機能 ---
 window.toggleShadowBan = async function(event, postId, currentStatus) {
     if (!confirm(currentStatus ? "解除しますか？" : "シャドウバンしますか？")) return;
-    const { error } = await supabaseClient.from('posts').update({ is_shadow_banned: !currentStatus }).eq('id', postId);
-    if (error) { alert("権限エラーまたは接続失敗。"); return; }
+    await supabaseClient.from('posts').update({ is_shadow_banned: !currentStatus }).eq('id', postId);
     loadPosts();
 };
 
 window.deletePost = async function(event, postId) {
     if (!confirm("削除しますか？")) return;
-    const { error } = await supabaseClient.from('posts').delete().eq('id', postId);
-    if (error) { alert("権限エラーまたは接続失敗。"); return; }
+    await supabaseClient.from('posts').delete().eq('id', postId);
     loadPosts(); 
 };
-
-// --- その他通知系 ---
-window.toggleNotification = function() {
-    if (!("Notification" in window)) return;
-    if (Notification.permission !== "granted") {
-        Notification.requestPermission().then(p => { if(p==="granted"){ localStorage.setItem('notify_enabled','true'); updateNotifyButton(); } });
-    } else {
-        const en = localStorage.getItem('notify_enabled') === 'true';
-        localStorage.setItem('notify_enabled', !en);
-        updateNotifyButton();
-    }
-};
-
-function updateNotifyButton() {
-    const btn = document.getElementById('notify-btn');
-    if (!btn) return;
-    const en = localStorage.getItem('notify_enabled') === 'true';
-    btn.innerHTML = (Notification.permission === "granted" && en) ? "🔔 通知：オン" : "🔕 通知：オフ";
-    btn.style.background = en ? "#e1ffed" : "#fff5f5";
-}
 
 document.addEventListener('DOMContentLoaded', init);
