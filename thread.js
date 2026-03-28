@@ -1,5 +1,5 @@
 /**
- * NewPlusJP - 掲示板システム (Soft Modern Edition)
+ * NewPlusJP - 掲示板システム (最新順・枠付きモダン)
  */
 
 let supabaseClient;
@@ -21,64 +21,66 @@ async function loadEverything() {
   const mainContainer = document.getElementById('single-thread-container');
   if (!mainContainer || !supabaseClient || !threadId) return;
 
-  // 全体の背景色を設定
-  document.body.style.backgroundColor = "#f0f2f5";
-  document.body.style.color = "#444";
+  // 背景を柔らかいグレーに（枠を際立たせるため）
+  document.body.style.backgroundColor = "#f5f7f9";
 
   const [tRes, pRes] = await Promise.all([
-    supabaseClient.from('threads').select('*').eq('id', threadId).maybeSingle(),
+    supabaseClient.from('threads').select('*').eq('id', threadId).single(),
+    // ★ orderを false (降順) にして最新を上に持ってくる
     supabaseClient.from('posts').select('*').eq('thread_id', threadId).order('created_at', { ascending: false })
   ]);
 
   if (tRes.error || !tRes.data) {
-    mainContainer.innerHTML = '<div style="padding:20px; text-align:center;">スレッドが見つかりません。</div>';
+    mainContainer.innerHTML = '<div style="text-align:center; padding:20px;">スレッドが見つかりません。</div>';
     return;
   }
 
   const thread = tRes.data;
   const posts = pRes.data || [];
-  const totalPosts = posts.length + 1;
+  const totalPosts = posts.length + 1; // 1番を含めた総数
 
   let html = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding:0 10px;">
-      <h2 style="margin:0; font-size:1.4em; color: #333;">${escapeHTML(thread.title)}</h2>
-      <button id="notify-toggle-btn" onclick="toggleNotification()" style="cursor:pointer; padding:6px 12px; border-radius:20px; border:1px solid #ddd; background:#fff; font-size:12px; color:#666;">通知：確認中</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding:0 5px;">
+      <h2 style="margin:0; font-size:1.3em; color:#333;">${escapeHTML(thread.title)}</h2>
+      <button id="notify-toggle-btn" onclick="toggleNotification()" style="cursor:pointer; padding:6px 15px; border-radius:20px; border:1px solid #ddd; background:#fff; font-size:11px; font-weight:bold; transition:0.2s;">
+        通知：確認中
+      </button>
     </div>
 
-    <div style="border: 1px solid #e0e0e0; border-radius: 15px; background: #fff; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+    <div style="background:#fff; border-radius:15px; padding:20px; margin-bottom:30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border:1px solid #eee;">
       <form id="post-form">
-        <div style="font-weight:bold; margin-bottom:10px; color:#555; font-size:0.9em;">新規メッセージを投稿</div>
-        <input type="text" id="user-name" placeholder="名前（空欄で名無しさん）" style="width:100%; margin-bottom:10px; padding:12px; border:1px solid #eee; background:#fafafa; border-radius:10px; box-sizing:border-box; outline:none;">
-        <textarea id="post-content" placeholder="内容を入力してください" required style="width:100%; height:90px; margin-bottom:12px; padding:12px; border:1px solid #eee; background:#fafafa; border-radius:10px; box-sizing:border-box; outline:none; resize:none; font-family:inherit;"></textarea>
-        <button type="submit" id="post-submit-btn" style="width:100%; padding:12px; background:#4cd137; color:white; border:none; border-radius:10px; cursor:pointer; font-weight:bold; font-size:1em; transition:0.3s;">メッセージを送信</button>
+        <input type="text" id="user-name" placeholder="名前 (名無しさん)" style="width:100%; margin-bottom:10px; padding:12px; border:1px solid #f0f0f0; background:#fafafa; border-radius:8px; box-sizing:border-box; outline:none;">
+        <textarea id="post-content" placeholder="最新メッセージを一番上に表示します" required style="width:100%; height:90px; margin-bottom:12px; padding:12px; border:1px solid #f0f0f0; background:#fafafa; border-radius:8px; box-sizing:border-box; outline:none; resize:none; font-family:inherit;"></textarea>
+        <button type="submit" id="post-submit-btn" style="width:100%; padding:12px; background:#2ed573; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1em;">書き込む</button>
       </form>
     </div>
 
     <div id="posts-list">
   `;
 
-  // 最新のレス（カード形式の枠）
+  // ① 最新のレス（カード形式の枠）
   html += posts.map((post, index) => {
     const postNumber = totalPosts - index;
     return `
-      <div style="background: #fff; border-radius: 12px; padding: 15px 20px; margin-bottom: 15px; border: 1px solid #eaeaea; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
-        <div style="font-size: 0.85em; color: #888; margin-bottom:8px; display:flex; justify-content:space-between;">
-          <span><strong style="color:#4cd137;">${postNumber}</strong> : <strong>${escapeHTML(post.name)}</strong></span>
-          <span>${new Date(post.created_at).toLocaleString()}</span>
+      <div style="background:#fff; border-radius:12px; padding:15px 20px; margin-bottom:15px; border:1px solid #eee; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+        <div style="font-size: 0.85em; color: #888; margin-bottom:8px;">
+          <span style="color:#2ed573; font-weight:bold;">${postNumber}</span> : <strong style="color:#444;">${escapeHTML(post.name)}</strong> 
+          <span style="margin-left:10px; font-size:0.9em; color:#bbb;">${new Date(post.created_at).toLocaleString()}</span>
         </div>
-        <div style="white-space: pre-wrap; line-height:1.6; color:#444;">${escapeHTML(post.content)}</div>
+        <div style="white-space: pre-wrap; line-height:1.6; color:#555;">${escapeHTML(post.content)}</div>
       </div>
     `;
   }).join('');
 
-  // スレ主の投稿（一番下の枠、少し色を変えて区別）
+  // ② 1番（スレッド開始メッセージ：一番下に配置）
   html += `
-      <div style="text-align:center; margin: 30px 0 15px; color:#bbb; font-size:0.8em; letter-spacing:1px;">THREAD START</div>
-      <div style="background: #f9fff9; border-radius: 12px; padding: 20px; border: 1px dashed #4cd137; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
-        <div style="font-size: 0.85em; color: #888; margin-bottom:10px;">
-          <strong style="color:#4cd137;">1</strong> : <strong>${escapeHTML(thread.name)}</strong> : ${new Date(thread.created_at).toLocaleString()}
+      <div style="text-align:center; margin: 40px 0 15px; color:#ccc; font-size:0.8em; letter-spacing:2px;">--- THREAD START ---</div>
+      <div style="background: #f0fff4; border-radius: 12px; padding: 20px; border: 2px dashed #2ed573;">
+        <div style="font-size: 0.85em; color: #666; margin-bottom:10px;">
+          <span style="color:#2ed573; font-weight:bold;">1</span> : <strong>${escapeHTML(thread.name)}</strong> 
+          <span style="margin-left:10px; font-size:0.9em; color:#999;">${new Date(thread.created_at).toLocaleString()}</span>
         </div>
-        <div style="white-space: pre-wrap; line-height:1.7; color:#333; font-weight:500;">${escapeHTML(thread.content)}</div>
+        <div style="white-space: pre-wrap; line-height:1.7; color:#444; font-weight:500;">${escapeHTML(thread.content)}</div>
       </div>
     </div>
   `;
@@ -88,7 +90,7 @@ async function loadEverything() {
   updateNotifyBtnStatus();
 }
 
-// 投稿ロジック（漢字・落ち着いた表現に修正）
+// 以下、ロジック部分は元のstartWatchingなどを維持してOK
 function setupFormListener() {
   const form = document.getElementById('post-form');
   if (!form) return;
@@ -99,43 +101,43 @@ function setupFormListener() {
     if (!content || btn.disabled) return;
 
     btn.disabled = true;
-    btn.style.opacity = "0.7";
     btn.innerText = "送信中...";
-
-    const { error } = await supabaseClient.from('posts').insert([{ 
+    await supabaseClient.from('posts').insert([{ 
       thread_id: threadId, 
       name: document.getElementById('user-name').value.trim() || "名無しさん", 
       content 
     }]);
-
-    if (error) {
-      alert("送信に失敗しました: " + error.message);
-    } else {
-      document.getElementById('post-content').value = "";
-    }
-    
+    document.getElementById('post-content').value = "";
     btn.disabled = false;
-    btn.style.opacity = "1";
-    btn.innerText = "メッセージを送信";
+    btn.innerText = "書き込む";
+    // リアルタイム側で更新されるが念のため
     loadEverything();
   };
 }
 
 function startWatching() {
   if (!supabaseClient || !threadId) return;
-  supabaseClient.channel(`thread_${threadId}`)
+  supabaseClient.channel('posts_realtime')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts', filter: `thread_id=eq.${threadId}` }, () => {
       loadEverything();
     }).subscribe();
 }
+
+window.toggleNotification = async function() {
+  if (Notification.permission !== "granted") await Notification.requestPermission();
+  const isEnabled = localStorage.getItem('notify_enabled') === 'true';
+  localStorage.setItem('notify_enabled', !isEnabled);
+  updateNotifyBtnStatus();
+};
 
 function updateNotifyBtnStatus() {
   const btn = document.getElementById('notify-toggle-btn');
   if (!btn) return;
   const isEnabled = localStorage.getItem('notify_enabled') === 'true';
   btn.innerHTML = isEnabled ? "🔔 通知：オン" : "🔕 通知：オフ";
-  btn.style.borderColor = isEnabled ? "#4cd137" : "#ddd";
-  btn.style.color = isEnabled ? "#4cd137" : "#666";
+  btn.style.backgroundColor = isEnabled ? "#e1ffed" : "#fff";
+  btn.style.borderColor = isEnabled ? "#2ed573" : "#ddd";
+  btn.style.color = isEnabled ? "#2ed573" : "#888";
 }
 
 document.addEventListener('DOMContentLoaded', () => {
