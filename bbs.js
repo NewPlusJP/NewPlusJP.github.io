@@ -13,13 +13,12 @@ async function loadThreads() {
   const container = document.getElementById('thread-container');
   if (!container || !supabaseClient) return;
 
-  // 最新順で取得
   const { data: threads, error } = await supabaseClient
     .from('threads').select('*').order('created_at', { ascending: false });
 
   if (error) {
     console.error("一覧の取得に失敗しました:", error);
-    return; // 画面を白くせず、何もしない（安定性重視）
+    return;
   }
 
   if (!threads || threads.length === 0) {
@@ -27,7 +26,6 @@ async function loadThreads() {
     return;
   }
 
-  // 運営スレを一番上に固定するソート
   const sortedThreads = [...threads].sort((a, b) => (b.is_admin_thread ? 1 : 0) - (a.is_admin_thread ? 1 : 0));
 
   container.innerHTML = sortedThreads.map(thread => {
@@ -136,7 +134,61 @@ function checkAdminStatus() {
   }
 }
 
+// --- 4. 通知機能 (復活) ---
+function renderNotifyButton() {
+  const adminConsole = document.getElementById('admin-console');
+  if (!adminConsole) return;
+
+  const btnId = 'notify-toggle-btn';
+  if (document.getElementById(btnId)) return;
+
+  const notifyBtn = document.createElement('button');
+  notifyBtn.id = btnId;
+  notifyBtn.style = "margin-left:10px; font-size:12px; cursor:pointer; padding:2px 8px; border-radius:4px; border:1px solid #ddd; background:#fff;";
+  adminConsole.appendChild(notifyBtn);
+
+  notifyBtn.onclick = async () => {
+    if (!("Notification" in window)) {
+      alert("このブラウザは通知に対応していません。");
+      return;
+    }
+    if (Notification.permission !== "granted") {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") return;
+    }
+    const isEnabled = localStorage.getItem('notify_enabled') === 'true';
+    localStorage.setItem('notify_enabled', !isEnabled);
+    updateNotifyButtonText();
+  };
+  updateNotifyButtonText();
+}
+
+function updateNotifyButtonText() {
+  const btn = document.getElementById('notify-toggle-btn');
+  if (!btn) return;
+  const isEnabled = localStorage.getItem('notify_enabled') === 'true';
+  btn.innerText = isEnabled ? "🔔 通知: オン" : "🔕 通知: オフ";
+  btn.style.backgroundColor = isEnabled ? "#e1ffed" : "#fff5f5";
+}
+
+function startThreadWatch() {
+  if (!supabaseClient) return;
+  supabaseClient
+    .channel('public:threads_watch')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'threads' }, payload => {
+      loadThreads(); // 一覧更新
+      const isEnabled = localStorage.getItem('notify_enabled') === 'true';
+      if (isEnabled && Notification.permission === "granted") {
+        new Notification("新着スレッド！", { body: payload.new.title });
+      }
+    })
+    .subscribe();
+}
+
+// --- 5. 実行 ---
 document.addEventListener('DOMContentLoaded', () => {
   loadThreads();
   checkAdminStatus();
+  renderNotifyButton(); // 追加
+  startThreadWatch();   // 追加
 });
