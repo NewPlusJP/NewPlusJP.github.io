@@ -4,11 +4,9 @@ if (typeof window.supabase === 'undefined') {
 }
 
 // --- 1. 初期化 ---
-// SUPABASE_URL と SUPABASE_ANON_KEY が正しく定義されていることが前提です
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const urlParams = new URLSearchParams(window.location.search);
 const threadId = urlParams.get('id');
-
 let currentThreadData = null;
 
 // --- 2. 起動処理 ---
@@ -16,13 +14,11 @@ async function init() {
     const container = document.getElementById('single-thread-container');
     if (!container) return;
 
-    // ライブラリがブロックされている場合の警告
     if (!supabaseClient) {
         container.innerHTML = `
             <div class="aa" style="border:2px solid red; padding:15px;">
                 <h3 style="color:red; margin-top:0;">⚠️ 接続が遮断されました</h3>
-                <p>ブラウザの「追跡防止機能」または「広告ブロック」によって通信が制限されています。</p>
-                <p>表示するには、ブラウザの設定で本サイトの追跡防止をオフにするか、別のブラウザをお試しください。</p>
+                <p>ブラウザの「追跡防止機能」または「広告ブロック」をオフにしてください。</p>
             </div>`;
         return;
     }
@@ -33,7 +29,6 @@ async function init() {
     }
 
     try {
-        // スレッド情報を取得
         const { data: thread, error } = await supabaseClient
             .from('threads')
             .select('*')
@@ -47,11 +42,10 @@ async function init() {
         }
 
         currentThreadData = thread;
-        renderPage(thread); // ページ全体の枠組みを表示
-        await loadPosts();  // レス一覧を表示
+        renderPage(thread);
+        await loadPosts();
     } catch (e) {
-        console.error("Init Error:", e);
-        container.innerHTML = "接続エラーが発生しました: " + e.message;
+        container.innerHTML = "接続エラー: " + e.message;
     }
 }
 
@@ -78,7 +72,7 @@ function renderPage(thread) {
 
     container.innerHTML = `
         <div class="aa">
-            <h2 style="color:${thread.is_admin_thread ? '#ff4757' : 'blue'}; border-bottom:2px solid #ddd; padding-bottom:5px;">
+            <h2 style="color:${thread.is_admin_thread ? '#ff4757' : 'inherit'}; border-bottom:2px solid #ddd; padding-bottom:5px;">
                 ${thread.is_admin_thread ? '📌' : ''} ${thread.title}
             </h2>
             ${formHTML}
@@ -95,6 +89,7 @@ function renderPage(thread) {
 // --- 4. レス一覧の取得 ---
 async function loadPosts() {
     const listArea = document.getElementById('res-list');
+    const isAdmin = localStorage.getItem('is_admin') === 'true';
     if (!listArea || !currentThreadData || !supabaseClient) return;
 
     try {
@@ -111,7 +106,8 @@ async function loadPosts() {
             content: currentThreadData.content || "",
             created_at: currentThreadData.created_at,
             user_id_display: "OWNER",
-            is_owner: true
+            is_owner: true,
+            id: null // スレ主は物理削除対象外
         };
 
         const allItems = [...(posts || []), ownerItem];
@@ -121,22 +117,45 @@ async function loadPosts() {
             const isAdm = p.is_admin_only === true;
             const style = isAdm ? 'background:#fff5f5; border-left:5px solid #ff4757;' : 'border-bottom:1px solid #eee;';
             
+            // 管理者の場合のみ削除ボタンを表示
+            const deleteBtn = (isAdmin && !p.is_owner) 
+                ? `<button onclick="deletePost(${p.id})" style="color:red; font-size:10px; margin-left:10px; cursor:pointer; background:none; border:1px solid red; border-radius:3px; padding:2px 5px;">[削除]</button>` 
+                : '';
+
             return `
                 <div style="padding:10px; margin-bottom:5px; ${style}">
                     <div style="font-size:12px; color:#666;">
                         <b>${num}</b> : <span style="color:${p.is_owner ? 'red' : 'green'}; font-weight:bold;">${p.name}</span>
                         [${new Date(p.created_at).toLocaleString()}] ID:${p.user_id_display || '???'}
+                        ${deleteBtn}
                     </div>
                     <div style="margin-top:5px; white-space:pre-wrap;">${isAdm ? '<b>【運営】</b>' : ''}${p.content}</div>
                 </div>`;
         }).join('');
 
     } catch (e) {
-        listArea.innerHTML = "レスの読み込みに失敗しました: " + e.message;
+        listArea.innerHTML = "レスの読み込み失敗: " + e.message;
     }
 }
 
-// --- 5. 投稿処理 ---
+// --- 5. 削除機能 (グローバル) ---
+window.deletePost = async function(postId) {
+    if (!confirm("このレスを削除しますか？")) return;
+    if (!supabaseClient) return;
+
+    const { error } = await supabaseClient
+        .from('posts')
+        .delete()
+        .eq('id', postId);
+
+    if (error) {
+        alert("削除に失敗しました: " + error.message);
+    } else {
+        await loadPosts(); // 一覧を更新
+    }
+};
+
+// --- 6. 投稿処理 ---
 async function handlePost(e) {
     e.preventDefault();
     if (!supabaseClient) return;
@@ -171,5 +190,4 @@ async function handlePost(e) {
     btn.disabled = false;
 }
 
-// 実行
 document.addEventListener('DOMContentLoaded', init);
