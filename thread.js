@@ -1,5 +1,11 @@
+// --- 0. 追跡防止・ロードチェック ---
+if (typeof window.supabase === 'undefined') {
+    console.error("Supabase library blocked by browser tracking prevention.");
+}
+
 // --- 1. 初期化 ---
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// SUPABASE_URL と SUPABASE_ANON_KEY が正しく定義されていることが前提です
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const urlParams = new URLSearchParams(window.location.search);
 const threadId = urlParams.get('id');
 
@@ -9,6 +15,18 @@ let currentThreadData = null;
 async function init() {
     const container = document.getElementById('single-thread-container');
     if (!container) return;
+
+    // ライブラリがブロックされている場合の警告
+    if (!supabaseClient) {
+        container.innerHTML = `
+            <div class="aa" style="border:2px solid red; padding:15px;">
+                <h3 style="color:red; margin-top:0;">⚠️ 接続が遮断されました</h3>
+                <p>ブラウザの「追跡防止機能」または「広告ブロック」によって通信が制限されています。</p>
+                <p>表示するには、ブラウザの設定で本サイトの追跡防止をオフにするか、別のブラウザをお試しください。</p>
+            </div>`;
+        return;
+    }
+
     if (!threadId) {
         container.innerHTML = "IDが指定されていません。";
         return;
@@ -42,7 +60,6 @@ function renderPage(thread) {
     const container = document.getElementById('single-thread-container');
     const isAdmin = localStorage.getItem('is_admin') === 'true';
 
-    // フォーム部分
     let formHTML = '';
     if (thread.is_admin_thread && !isAdmin) {
         formHTML = `<div style="background:#eee; padding:15px; text-align:center; margin-bottom:20px;">📢 運営専用スレッドです</div>`;
@@ -75,21 +92,20 @@ function renderPage(thread) {
     }
 }
 
-// --- 4. レス一覧の取得 (SQLのカラム名に厳密に合わせる) ---
+// --- 4. レス一覧の取得 ---
 async function loadPosts() {
     const listArea = document.getElementById('res-list');
-    if (!listArea || !currentThreadData) return;
+    if (!listArea || !currentThreadData || !supabaseClient) return;
 
     try {
         const { data: posts, error } = await supabaseClient
             .from('posts')
             .select('*')
             .eq('thread_id', threadId)
-            .order('created_at', { ascending: false }); // 最新を上に
+            .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        // スレ主のデータ（1番）を作成
         const ownerItem = {
             name: currentThreadData.name || "名無しさん",
             content: currentThreadData.content || "",
@@ -102,7 +118,6 @@ async function loadPosts() {
 
         listArea.innerHTML = allItems.map((p, index) => {
             const num = allItems.length - index;
-            // SQLのカラム名「is_admin_only」を使用
             const isAdm = p.is_admin_only === true;
             const style = isAdm ? 'background:#fff5f5; border-left:5px solid #ff4757;' : 'border-bottom:1px solid #eee;';
             
@@ -124,6 +139,8 @@ async function loadPosts() {
 // --- 5. 投稿処理 ---
 async function handlePost(e) {
     e.preventDefault();
+    if (!supabaseClient) return;
+
     const btn = document.getElementById('submit-btn');
     const content = document.getElementById('res-content').value;
     const name = document.getElementById('res-name').value || "名無しさん";
@@ -142,7 +159,7 @@ async function handlePost(e) {
             name: name,
             content: content,
             user_id_display: myID,
-            is_admin_only: isSecret // SQLのカラム名に合わせる
+            is_admin_only: isSecret
         }]);
 
     if (error) {

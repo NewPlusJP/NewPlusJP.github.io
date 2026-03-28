@@ -10,19 +10,43 @@
     src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" 
     crossorigin="anonymous"
   ></script>
-</head>
+
+  </head>
 <body>
 
   <header>
     <h1><a href="index.html" style="color:white; text-decoration:none;">NewPlusJP</a></h1>
   </header>
 
-  <div id="single-thread-container">
+  <main id="single-thread-container">
     <div class="aa">
       <p style="color:#666;">データを読み込んでいます...</p>
-      <noscript>JavaScriptを有効にしてください。</noscript>
+      
+      <div id="loading-hint" style="display:none; margin-top:20px; padding:15px; border:1px solid #ccc; background:#f9f9f9; font-size:0.9em;">
+        <p><b>なかなか読み込まれない場合：</b></p>
+        <ul style="text-align:left; display:inline-block;">
+          <li>ブラウザの「追跡防止」機能をオフにしてみてください。</li>
+          <li>広告ブロック（AdBlock等）を一時的にオフにしてみてください。</li>
+        </ul>
+      </div>
+      <script>
+        setTimeout(() => {
+          if (document.getElementById('res-list') === null) {
+            document.getElementById('loading-hint').style.display = 'block';
+          }
+        }, 3000);
+      </script>
+
+      <noscript>
+        <p style="color:red;">JavaScriptが効いていないようです。ブラウザの設定を確認してください。</p>
+      </noscript>
     </div>
-  </div>
+  </main>
+
+  <footer style="margin-top:40px; border-top:1px solid #ccc; padding:20px; text-align:center; font-size:0.8em; color:#888;">
+    <p>© 2026 NewPlusJP - <a href="rules.html" style="color:#888;">利用規約・著作権</a></p>
+    <p><a href="index.html" style="text-decoration:none;">■ トップへ戻る</a></p>
+  </footer>
 
   <script src="config.js"></script> 
   <script src="thread.js"></script>
