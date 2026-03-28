@@ -3,133 +3,195 @@ const supabaseClient = (window.supabase && typeof SUPABASE_URL !== 'undefined')
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
   : null;
 
-const params = new URLSearchParams(window.location.search);
-const threadId = params.get('id');
-
 function escapeHTML(str) {
   if (!str) return "";
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
-// --- 1. スレッド本体(1番)とレス一覧を表示 ---
-async function loadThreadAndPosts() {
-  const postsContainer = document.getElementById('posts-container');
-  const threadTitle = document.getElementById('thread-title');
-  if (!postsContainer || !supabaseClient || !threadId) return;
+// --- 1. スレッド一覧表示 (運営固定 + 新着順) ---
+async function loadThreads() {
+  const container = document.getElementById('thread-container');
+  if (!container || !supabaseClient) return;
 
-  // ① スレッドの基本情報（1番の内容）を取得
-  const { data: thread, error: tError } = await supabaseClient
-    .from('threads').select('*').eq('id', threadId).single();
+  // 最新順（created_at 降順）で取得
+  const { data: threads, error } = await supabaseClient
+    .from('threads').select('*').order('created_at', { ascending: false });
 
-  if (tError || !thread) {
-    postsContainer.innerHTML = '<p style="text-align:center; padding:20px;">スレッドが見つかりません。</p>';
+  if (error) {
+    console.error("一覧の取得に失敗しました:", error);
     return;
   }
 
-  // タイトルを画面に反映
-  if (threadTitle) threadTitle.innerText = thread.title;
-
-  // ② レス一覧を取得（作成順）
-  const { data: posts, error: pError } = await supabaseClient
-    .from('posts').select('*').eq('thread_id', threadId).order('created_at', { ascending: true });
-
-  if (pError) {
-    console.error("レスの取得失敗:", pError);
+  if (!threads || threads.length === 0) {
+    container.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">まだスレッドがありません。</p>';
     return;
   }
 
-  // ③ HTML組み立て
-  // まずは「1番（スレ主）」を一番上に固定
-  let html = `
-    <div class="aa" style="margin-bottom: 20px; border-left: 5px solid #2ed573;">
-      <div style="font-size: 0.85em; color: #666;">
-        1 ：<span style="font-weight:bold; color:#2ed573;">${escapeHTML(thread.name)}</span>：${new Date(thread.created_at).toLocaleString()}
-      </div>
-      <div style="margin-top: 10px; white-space: pre-wrap; font-size: 1.05em;">${escapeHTML(thread.content)}</div>
-    </div>
-  `;
+  // 運営スレを一番上に、それ以外は取得時の「新着順」を維持
+  const sortedThreads = [...threads].sort((a, b) => {
+    if (a.is_admin_thread === b.is_admin_thread) return 0;
+    return a.is_admin_thread ? -1 : 1;
+  });
 
-  // 続けて2番以降のレスをループで追加
-  html += posts.map((post, index) => `
-    <div class="aa" style="margin-bottom: 15px;">
-      <div style="font-size: 0.85em; color: #666;">
-        ${index + 2} ：<span style="font-weight:bold; color:#2ed573;">${escapeHTML(post.name)}</span>：${new Date(post.created_at).toLocaleString()}
-      </div>
-      <div style="margin-top: 5px; white-space: pre-wrap;">${escapeHTML(post.content)}</div>
-    </div>
-  `).join('');
+  container.innerHTML = sortedThreads.map(thread => {
+    const isSpecial = thread.is_admin_thread === true;
+    const cardStyle = isSpecial ? 'border: 2px solid #ff4757; background: rgba(255, 71, 87, 0.05);' : '';
+    const badge = isSpecial ? '<span style="background:#ff4757; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7em; margin-right:8px;">📌 運営</span>' : '';
+    const isAdmin = localStorage.getItem('is_admin') === 'true';
 
-  postsContainer.innerHTML = html;
+    return `
+      <div class="aa" style="${cardStyle} padding:15px; margin-bottom:10px; border-radius:10px; border:1px solid #ddd;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0;">
+            ${badge}
+            <a href="thread.html?id=${thread.id}" style="color: ${isSpecial ? '#ff4757' : 'inherit'}; text-decoration: none; font-weight:bold;">
+              ${escapeHTML(thread.title)}
+            </a>
+          </h3>
+          ${isAdmin ? `<button onclick="deleteThread('${thread.id}')" style="color:red; cursor:pointer; background:white; border:1px solid red; border-radius:4px; padding:2px 5px; font-size:12px;">削除</button>` : ''}
+        </div>
+        <div style="font-size:0.85em; color:#666; margin:5px 0;">
+          1 ：<span style="font-weight:bold; color:#2ed573;">${escapeHTML(thread.name)}</span>：${new Date(thread.created_at).toLocaleString()}
+        </div>
+        <div style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; font-size:0.95em; white-space: pre-wrap;">
+          ${escapeHTML(thread.content)}
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
-// --- 2. 書き込み機能 ---
-const postForm = document.getElementById('post-form');
-if (postForm) {
-  postForm.addEventListener('submit', async (e) => {
+// --- 2. 管理者ログイン・ログアウト ---
+window.handleAdminLogin = async function() {
+  const name = document.getElementById('admin-user').value.trim();
+  const pass = document.getElementById('admin-pass').value.trim();
+  if (!name || !pass) return;
+
+  const { data, error } = await supabaseClient
+    .from('user_accounts').select('username')
+    .setHeaders({ 'x-admin-user': name, 'x-admin-pass': pass })
+    .maybeSingle();
+
+  if (data) {
+    alert("管理者認証成功！");
+    localStorage.setItem('is_admin', 'true');
+    localStorage.setItem('admin_name', name);
+    location.reload();
+  } else {
+    alert("認証に失敗しました。");
+  }
+};
+
+window.logout = function() { 
+    if(!confirm("ログアウトしますか？")) return;
+    localStorage.removeItem('is_admin');
+    localStorage.removeItem('admin_name');
+    location.reload(); 
+};
+
+window.deleteThread = async function(id) {
+  if (!confirm("このスレッドを完全に削除しますか？")) return;
+  await supabaseClient.from('threads').delete().eq('id', id);
+  loadThreads();
+};
+
+// --- 3. スレ立て ---
+const threadForm = document.getElementById('thread-form');
+if (threadForm) {
+  threadForm.addEventListener('submit', async function(e) {
     e.preventDefault();
-    const btn = e.target.querySelector('button');
-    const nameInput = document.getElementById('user-name');
-    const contentInput = document.getElementById('post-content');
     
-    const name = nameInput.value.trim() || "名無しさん";
-    const content = contentInput.value.trim();
-    if (!content) return;
+    // ハニーポット（スパム対策）
+    if (document.getElementById('honey-pot').value) return;
+
+    const btn = document.getElementById('create-btn');
+    const title = document.getElementById('thread-title').value.trim();
+    const name = document.getElementById('user-name').value.trim() || "名無しさん";
+    const content = document.getElementById('content').value.trim();
+    const adminCheck = document.getElementById('is-admin-thread');
 
     btn.disabled = true;
-    const { error } = await supabaseClient.from('posts').insert([{ 
-      thread_id: threadId, 
-      name: name, 
-      content: content 
-    }]);
+    btn.innerText = "作成中...";
 
-    if (error) {
-      alert("書き込みに失敗しました: " + error.message);
+    const { data, error } = await supabaseClient
+      .from('threads').insert([{ 
+        title, name, content, 
+        is_admin_thread: adminCheck ? adminCheck.checked : false 
+      }]).select(); 
+    
+    if (data && data[0]) {
+      window.location.href = `thread.html?id=${data[0].id}`;
     } else {
-      contentInput.value = "";
-      loadThreadAndPosts(); // 再読み込み
+      alert("失敗: " + error.message);
+      btn.disabled = false; btn.innerText = "スレッドを作成する";
     }
-    btn.disabled = false;
   });
 }
 
-// --- 3. 通知ボタンの制御 (index.htmlと共通) ---
+// --- 4. 通知機能 ---
 window.toggleNotification = async function() {
-  if (!("Notification" in window)) return;
-  if (Notification.permission !== "granted") {
-    await Notification.requestPermission();
+  if (!("Notification" in window)) {
+    alert("このブラウザは通知に対応していません。");
+    return;
   }
+
+  if (Notification.permission !== "granted") {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return;
+  }
+
   const isEnabled = localStorage.getItem('notify_enabled') === 'true';
   localStorage.setItem('notify_enabled', !isEnabled);
-  updateNotifyStatus();
+  updateNotifyButtonStatus();
 };
 
-function updateNotifyStatus() {
-  const btn = document.getElementById('notify-toggle-btn');
+function updateNotifyButtonStatus() {
+  const btn = document.getElementById('notify-btn-top');
   if (!btn) return;
   const isEnabled = localStorage.getItem('notify_enabled') === 'true';
-  btn.innerHTML = isEnabled ? "🔔 通知：オン" : "🔕 通知：オフ";
-  btn.style.backgroundColor = isEnabled ? "#e1ffed" : "#fff5f5";
+  btn.innerText = isEnabled ? "🔔 通知：オン" : "🔕 通知をオンにする";
+  btn.style.backgroundColor = isEnabled ? "#e1ffed" : "#fff";
 }
 
-// --- 4. リアルタイム更新の監視 ---
-function subscribeToPosts() {
-  if (!supabaseClient || !threadId) return;
+function startThreadWatch() {
+  if (!supabaseClient) return;
   supabaseClient
-    .channel(`public:posts:thread=${threadId}`)
-    .on('postgres_changes', { 
-      event: 'INSERT', 
-      schema: 'public', 
-      table: 'posts', 
-      filter: `thread_id=eq.${threadId}` 
-    }, () => {
-      loadThreadAndPosts();
+    .channel('public:threads_watch')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'threads' }, payload => {
+      loadThreads();
+      const isEnabled = localStorage.getItem('notify_enabled') === 'true';
+      if (isEnabled && Notification.permission === "granted") {
+        new Notification("新着スレッド！", { body: payload.new.title });
+      }
     })
     .subscribe();
 }
 
-// --- 5. 実行 ---
+// --- 5. 管理者状態チェック ---
+function checkAdminStatus() {
+  const isAdmin = localStorage.getItem('is_admin') === 'true';
+  const adminName = localStorage.getItem('admin_name');
+  const adminConsole = document.getElementById('admin-console');
+  const adminInputs = document.getElementById('admin-auth-inputs');
+  const optionContainer = document.getElementById('admin-thread-option');
+
+  if (isAdmin) {
+    if (adminConsole) {
+      adminConsole.style.display = 'block';
+      const nameEl = document.getElementById('admin-name');
+      if (nameEl) nameEl.innerText = adminName;
+    }
+    if (adminInputs) adminInputs.style.display = 'none';
+    if (optionContainer) {
+      optionContainer.innerHTML = `<label style="color: #ff4757; font-weight: bold;"><input type="checkbox" id="is-admin-thread"> 📢 運営専用（ピン留め）にする</label>`;
+    }
+  }
+}
+
+// 実行開始
 document.addEventListener('DOMContentLoaded', () => {
-  loadThreadAndPosts();
-  updateNotifyStatus(); // 初期状態反映
-  subscribeToPosts();
+  loadThreads();
+  checkAdminStatus();
+  updateNotifyButtonStatus();
+  startThreadWatch();
 });
