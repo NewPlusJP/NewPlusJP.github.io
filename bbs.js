@@ -1,29 +1,25 @@
-// --- 0. 初期化 ---
-let supabaseClient;
-try {
-  if (typeof SUPABASE_URL !== 'undefined') {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  }
-} catch (e) {
-  console.error("Supabase初期化失敗:", e);
-}
+// --- 初期化 ---
+const supabaseClient = (window.supabase && typeof SUPABASE_URL !== 'undefined') 
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
+  : null;
 
 function escapeHTML(str) {
   if (!str) return "";
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
-// --- 1. スレッド一覧表示 ---
+// --- 1. スレッド一覧表示 (安定化版) ---
 async function loadThreads() {
   const container = document.getElementById('thread-container');
   if (!container || !supabaseClient) return;
 
+  // 最新順で取得
   const { data: threads, error } = await supabaseClient
     .from('threads').select('*').order('created_at', { ascending: false });
 
   if (error) {
-    container.innerHTML = `<p style="color:red;">エラー: ${error.message}</p>`;
-    return;
+    console.error("一覧の取得に失敗しました:", error);
+    return; // 画面を白くせず、何もしない（安定性重視）
   }
 
   if (!threads || threads.length === 0) {
@@ -31,17 +27,14 @@ async function loadThreads() {
     return;
   }
 
-  // 運営スレを一番上にするソート
-  const sortedThreads = [...threads].sort((a, b) => {
-    if (a.is_admin_thread === b.is_admin_thread) return 0;
-    return a.is_admin_thread ? -1 : 1;
-  });
+  // 運営スレを一番上に固定するソート
+  const sortedThreads = [...threads].sort((a, b) => (b.is_admin_thread ? 1 : 0) - (a.is_admin_thread ? 1 : 0));
 
   container.innerHTML = sortedThreads.map(thread => {
     const isSpecial = thread.is_admin_thread === true;
-    const isAdmin = localStorage.getItem('is_admin') === 'true';
     const cardStyle = isSpecial ? 'border: 2px solid #ff4757; background: rgba(255, 71, 87, 0.05);' : '';
-    const badge = isSpecial ? '<span style="background:#ff4757; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.75em; margin-right:8px;">📌 運営</span>' : '';
+    const badge = isSpecial ? '<span style="background:#ff4757; color:#fff; padding:2px 6px; border-radius:4px; font-size:0.7em; margin-right:8px;">📌 運営</span>' : '';
+    const isAdmin = localStorage.getItem('is_admin') === 'true';
 
     return `
       <div class="aa" style="${cardStyle} padding:15px; margin-bottom:10px; border-radius:10px; border:1px solid #ddd;">
@@ -52,7 +45,7 @@ async function loadThreads() {
               ${escapeHTML(thread.title)}
             </a>
           </h3>
-          ${isAdmin ? `<button onclick="deleteThread('${thread.id}')" style="color:red; border:1px solid red; background:none; cursor:pointer; border-radius:4px;">削除</button>` : ''}
+          ${isAdmin ? `<button onclick="deleteThread('${thread.id}')" style="color:red; cursor:pointer; background:white; border:1px solid red; border-radius:4px; padding:2px 5px; font-size:12px;">削除</button>` : ''}
         </div>
         <div style="font-size:0.85em; color:#666; margin:5px 0;">
           1 ：<span style="font-weight:bold; color:#2ed573;">${escapeHTML(thread.name)}</span>：${new Date(thread.created_at).toLocaleString()}
@@ -65,31 +58,36 @@ async function loadThreads() {
   }).join('');
 }
 
-// --- 2. 管理者機能 ---
+// --- 2. 管理者ログイン・ログアウト ---
 window.handleAdminLogin = async function() {
-  const u = document.getElementById('admin-user')?.value.trim();
-  const p = document.getElementById('admin-pass')?.value.trim();
-  if (!u || !p) return;
+  const name = document.getElementById('admin-user').value.trim();
+  const pass = document.getElementById('admin-pass').value.trim();
+  if (!name || !pass) return;
 
-  const { data } = await supabaseClient.from('user_accounts').select('username')
-    .setHeaders({ 'x-admin-user': u, 'x-admin-pass': p }).maybeSingle();
+  const { data, error } = await supabaseClient
+    .from('user_accounts').select('username')
+    .setHeaders({ 'x-admin-user': name, 'x-admin-pass': pass })
+    .maybeSingle();
 
   if (data) {
+    alert("管理者認証成功！");
     localStorage.setItem('is_admin', 'true');
-    localStorage.setItem('admin_name', u);
+    localStorage.setItem('admin_name', name);
     location.reload();
   } else {
-    alert("認証失敗");
+    alert("認証に失敗しました。");
   }
 };
 
-window.logout = function() {
-  localStorage.clear();
-  location.reload();
+window.logout = function() { 
+    if(!confirm("ログアウトしますか？")) return;
+    localStorage.removeItem('is_admin');
+    localStorage.removeItem('admin_name');
+    location.reload(); 
 };
 
 window.deleteThread = async function(id) {
-  if (!confirm("消すよ？")) return;
+  if (!confirm("このスレッドを完全に削除しますか？")) return;
   await supabaseClient.from('threads').delete().eq('id', id);
   loadThreads();
 };
@@ -97,51 +95,48 @@ window.deleteThread = async function(id) {
 // --- 3. スレ立て ---
 const threadForm = document.getElementById('thread-form');
 if (threadForm) {
-  threadForm.addEventListener('submit', async (e) => {
+  threadForm.addEventListener('submit', async function(e) {
     e.preventDefault();
-    if (document.getElementById('honey-pot')?.value) return;
-
     const btn = document.getElementById('create-btn');
     const title = document.getElementById('thread-title').value.trim();
     const name = document.getElementById('user-name').value.trim() || "名無しさん";
     const content = document.getElementById('content').value.trim();
-    const isSpecial = document.getElementById('is-admin-thread')?.checked || false;
+    const adminCheck = document.getElementById('is-admin-thread');
 
     btn.disabled = true;
-    const { data, error } = await supabaseClient.from('threads').insert([{ title, name, content, is_admin_thread: isSpecial }]).select();
+    btn.innerText = "作成中...";
 
-    if (data) window.location.href = `thread.html?id=${data[0].id}`;
-    else { alert(error.message); btn.disabled = false; }
+    const { data, error } = await supabaseClient
+      .from('threads').insert([{ 
+        title, name, content, 
+        is_admin_thread: adminCheck ? adminCheck.checked : false 
+      }]).select(); 
+    
+    if (data && data[0]) {
+      window.location.href = `thread.html?id=${data[0].id}`;
+    } else {
+      alert("失敗: " + error.message);
+      btn.disabled = false; btn.innerText = "スレッドを作成する";
+    }
   });
 }
 
-// --- 4. 通知機能 (HTMLのID: notify-btn-top に対応) ---
-window.toggleNotification = async function() {
-  if (Notification.permission !== "granted") await Notification.requestPermission();
-  const isEnabled = localStorage.getItem('notify_enabled') === 'true';
-  localStorage.setItem('notify_enabled', !isEnabled);
-  updateNotifyBtn();
-};
+function checkAdminStatus() {
+  const isAdmin = localStorage.getItem('is_admin') === 'true';
+  const adminConsole = document.getElementById('admin-console');
+  const adminInputs = document.getElementById('admin-auth-inputs');
+  const optionContainer = document.getElementById('admin-thread-option');
 
-function updateNotifyBtn() {
-  const btn = document.getElementById('notify-btn-top');
-  if (!btn) return;
-  const isEnabled = localStorage.getItem('notify_enabled') === 'true';
-  btn.innerText = isEnabled ? "🔔 通知：オン" : "🔕 通知をオンにする";
+  if (isAdmin) {
+    if (adminConsole) adminConsole.style.display = 'block';
+    if (adminInputs) adminInputs.style.display = 'none';
+    if (optionContainer) {
+      optionContainer.innerHTML = `<label style="color: #ff4757; font-weight: bold;"><input type="checkbox" id="is-admin-thread"> 📢 運営専用（ピン留め）にする</label>`;
+    }
+  }
 }
 
-// --- 5. 実行 ---
 document.addEventListener('DOMContentLoaded', () => {
   loadThreads();
-  updateNotifyBtn();
-
-  // 管理者UIの反映
-  const isAdmin = localStorage.getItem('is_admin') === 'true';
-  if (isAdmin) {
-    if (document.getElementById('admin-console')) document.getElementById('admin-console').style.display = 'block';
-    if (document.getElementById('admin-auth-inputs')) document.getElementById('admin-auth-inputs').style.display = 'none';
-    if (document.getElementById('admin-name')) document.getElementById('admin-name').innerText = localStorage.getItem('admin_name');
-    const opt = document.getElementById('admin-thread-option');
-    if (opt) opt.innerHTML = `<label style="color:red;"><input type="checkbox" id="is-admin-thread"> 運営スレにする</label>`;
-  }
+  checkAdminStatus();
 });

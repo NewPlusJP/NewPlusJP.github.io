@@ -1,134 +1,251 @@
-// --- 0. 初期化 ---
-let supabaseClient;
-try {
-  if (typeof SUPABASE_URL !== 'undefined') {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  }
-} catch (e) { console.error("Supabase初期化失敗:", e); }
+// --- 0. 起動チェック ---
+if (typeof window.supabase === 'undefined') {
+    console.error("Supabase library blocked.");
+}
 
-const params = new URLSearchParams(window.location.search);
-const threadId = params.get('id');
+// --- 1. 初期化 ---
+const supabaseClient = (window.supabase && typeof SUPABASE_URL !== 'undefined') 
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
+    : null;
+
+const urlParams = new URLSearchParams(window.location.search);
+const threadId = urlParams.get('id');
+let currentThreadData = null;
+let lastPostContent = ""; 
+
+// ブラウザ固有ID (UUID)
+function getPermanentID() {
+    // 管理者の場合は、IDを固定（または特別な文字列）にすることで「OWNER」表示と整合性をとる
+    if (localStorage.getItem('is_admin') === 'true') {
+        return "ADMIN-" + localStorage.getItem('admin_name');
+    }
+    let myID = localStorage.getItem('user_permanent_id');
+    if (!myID) {
+        myID = "ID-" + crypto.randomUUID(); 
+        localStorage.setItem('user_permanent_id', myID);
+    }
+    return myID;
+}
 
 function escapeHTML(str) {
-  if (!str) return "";
-  return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    if (!str) return "";
+    return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
-// --- 1. メイン読み込み & UI生成 ---
-async function loadEverything() {
-  const mainContainer = document.getElementById('single-thread-container');
-  if (!mainContainer || !supabaseClient || !threadId) return;
+// --- 2. 起動処理 ---
+async function init() {
+    const container = document.getElementById('single-thread-container');
+    if (!container || !supabaseClient || !threadId) return;
 
-  // ① データの取得（スレッド本体 + レス）
-  const [tRes, pRes] = await Promise.all([
-    supabaseClient.from('threads').select('*').eq('id', threadId).single(),
-    supabaseClient.from('posts').select('*').eq('thread_id', threadId).order('created_at', { ascending: true })
-  ]);
+    try {
+        const { data: thread, error } = await supabaseClient
+            .from('threads').select('*').eq('id', threadId).maybeSingle();
 
-  if (tRes.error || !tRes.data) {
-    mainContainer.innerHTML = '<div class="aa">スレッドが見つかりません。</div>';
-    return;
-  }
+        if (error || !thread) {
+            container.innerHTML = "スレッドが存在しません。";
+            return;
+        }
 
-  const thread = tRes.data;
-  const posts = pRes.data || [];
-
-  // ② UIの組み立て（通知ボタン・フォーム・投稿一覧を全部作る）
-  let html = `
-    <div class="aa" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-      <h2 style="margin:0; font-size:1.4em;">${escapeHTML(thread.title)}</h2>
-      <button id="notify-toggle-btn" onclick="toggleNotification()" style="white-space:nowrap; cursor:pointer; padding:6px 12px; border-radius:20px; border:1px solid #ddd; background:#fff; font-size:12px; font-weight:bold; transition: 0.2s;">
-        🔕 通知：オフ
-      </button>
-    </div>
-
-    <div class="aa">
-      <form id="post-form">
-        <input type="text" id="user-name" placeholder="名無しさん" style="width:100%; margin-bottom:10px; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
-        <textarea id="post-content" placeholder="内容を入力してください" required style="width:100%; height:100px; margin-bottom:10px; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box; font-family:inherit;"></textarea>
-        <button type="submit" id="post-submit-btn" class="submit-btn" style="width:100%; padding:10px; cursor:pointer; font-weight:bold;">書き込む</button>
-      </form>
-    </div>
-
-    <div id="posts-list">
-      <div class="aa" style="border-left: 5px solid #2ed573; background: rgba(46, 213, 115, 0.03);">
-        <div style="font-size: 0.85em; color: #666; margin-bottom:8px;">
-          1 ：<span style="font-weight:bold; color:#2ed573;">${escapeHTML(thread.name)}</span>：${new Date(thread.created_at).toLocaleString()}
-        </div>
-        <div style="white-space: pre-wrap; line-height:1.6;">${escapeHTML(thread.content)}</div>
-      </div>
-  `;
-
-  // 2番以降のレス
-  html += posts.map((post, index) => `
-      <div class="aa">
-        <div style="font-size: 0.85em; color: #666; margin-bottom:5px;">
-          ${index + 2} ：<span style="font-weight:bold; color:#2ed573;">${escapeHTML(post.name)}</span>：${new Date(post.created_at).toLocaleString()}
-        </div>
-        <div style="white-space: pre-wrap; line-height:1.5;">${escapeHTML(post.content)}</div>
-      </div>
-  `).join('');
-
-  html += `</div>`;
-  
-  // HTMLを一気に反映
-  mainContainer.innerHTML = html;
-
-  // フォームと通知ボタンの初期設定
-  setupFormListener();
-  updateNotifyBtnStatus();
+        currentThreadData = thread;
+        renderPage(thread);
+        await loadPosts();
+        startRealtimeMonitor();
+    } catch (e) {
+        container.innerHTML = "接続エラー: " + escapeHTML(e.message);
+    }
 }
 
-// --- 2. 書き込み処理 ---
-function setupFormListener() {
-  const form = document.getElementById('post-form');
-  if (!form) return;
+// --- 3. 画面描画 ---
+function renderPage(thread) {
+    const container = document.getElementById('single-thread-container');
+    const isAdmin = localStorage.getItem('is_admin') === 'true';
+    const safeTitle = escapeHTML(thread.title);
 
-  form.addEventListener('submit', async (e) => {
+    let formHTML = '';
+    if (thread.is_admin_thread && !isAdmin) {
+        formHTML = `<div style="background:#eee; padding:15px; text-align:center; margin-bottom:20px;">📢 運営専用スレッドです</div>`;
+    } else {
+        const adminToggle = isAdmin ? `<label style="color:#ff4757; font-size:12px;"><input type="checkbox" id="admin-mode" checked> 管理者として投稿</label><br>` : '';
+        const savedName = escapeHTML(localStorage.getItem('user_display_name') || '');
+        
+        formHTML = `
+            <div style="background:#f4f4f4; padding:15px; border:1px solid #ccc; margin-bottom:20px; border-radius:10px;">
+                <form id="reply-form">
+                    <input type="text" id="res-name" value="${savedName}" placeholder="名前" style="margin-bottom:5px;"><br>
+                    <input type="text" id="honey-pot" style="display:none !important;" tabindex="-1" autocomplete="off">
+                    ${adminToggle}
+                    <textarea id="res-content" placeholder="内容を入力してください" required style="width:95%; height:60px; margin-top:5px;"></textarea><br>
+                    <button type="submit" id="submit-btn" style="margin-top:5px; padding:5px 20px;">書き込む</button>
+                </form>
+            </div>`;
+    }
+
+    container.innerHTML = `
+        <div class="aa">
+            <h2 style="color:${thread.is_admin_thread ? '#ff4757' : 'inherit'}; border-bottom:2px solid #ddd; padding-bottom:5px;">
+                ${thread.is_admin_thread ? '📌' : ''} ${safeTitle}
+            </h2>
+            <div style="text-align:right; margin-bottom:10px;">
+                <button onclick="toggleNotification()" id="notify-btn" style="font-size:11px; padding:3px 10px; cursor:pointer; background:#fff; border:1px solid #ddd; border-radius:20px;">🔔 通知設定中...</button>
+            </div>
+            ${formHTML}
+            <div id="res-list">読み込み中...</div>
+            <p style="text-align:center; margin-top:20px;"><a href="index.html">【トップに戻る】</a></p>
+        </div>`;
+
+    if (document.getElementById('reply-form')) {
+        document.getElementById('reply-form').addEventListener('submit', handlePost);
+    }
+    updateNotifyButton();
+}
+
+// --- 4. レス一覧取得 (シャドウバン表示制限) ---
+async function loadPosts() {
+    const listArea = document.getElementById('res-list');
+    const isAdmin = localStorage.getItem('is_admin') === 'true'; 
+    const myID = getPermanentID();
+    if (!listArea || !currentThreadData) return;
+
+    const { data: posts, error } = await supabaseClient
+        .from('posts').select('*').eq('thread_id', threadId).order('created_at', { ascending: true }); // 掲示板らしく昇順(古い順)に変更もアリ
+
+    if (error) return;
+
+    // スレ主の投稿（1レス目）を擬似的に作成
+    const ownerItem = {
+        name: currentThreadData.name || "名無しさん",
+        content: currentThreadData.content || "",
+        created_at: currentThreadData.created_at,
+        user_id_display: "OWNER", 
+        is_real_owner: true, 
+        id: 'THREAD_ROOT',
+        is_shadow_banned: false
+    };
+
+    // 1レス目 + 取得したレス
+    const allItems = [ownerItem, ...(posts || [])];
+
+    listArea.innerHTML = allItems.map((p, index) => {
+        // 【防衛】シャドウバン投稿は本人か管理者以外には見せない
+        if (p.is_shadow_banned && p.user_id_display !== myID && !isAdmin) return '';
+
+        const num = index + 1;
+        const isAdmPost = p.is_admin_only === true;
+        const shadowStyle = p.is_shadow_banned ? 'opacity: 0.5; border: 1px dashed gray;' : '';
+        const style = isAdmPost ? 'background:#fff5f5; border-left:5px solid #ff4757;' : 'border-bottom:1px solid #eee;';
+
+        let adminControls = '';
+        if (isAdmin && p.id !== 'THREAD_ROOT') {
+            const banLabel = p.is_shadow_banned ? '解除 👻' : 'シャドウバン 👻';
+            adminControls = `
+                <button onclick="deletePost(event, ${p.id})" style="color:red; font-size:10px; margin-left:10px; cursor:pointer; background:white; border:1px solid red; border-radius:3px; padding:2px 5px;">削除 🗑️</button>
+                <button onclick="toggleShadowBan(event, ${p.id}, ${p.is_shadow_banned})" style="color:gray; font-size:10px; margin-left:5px; cursor:pointer; background:white; border:1px solid gray; border-radius:3px; padding:2px 5px;">${banLabel}</button>
+            `;
+        }
+
+        return `
+            <div style="padding:10px; margin-bottom:5px; ${style} ${shadowStyle}">
+                <div style="font-size:12px; color:#666;">
+                    <b>${num}</b> : <span style="color:${p.is_real_owner || isAdmPost ? 'red' : '#2ed573'}; font-weight:bold;">${escapeHTML(p.name)}</span>
+                    [${new Date(p.created_at).toLocaleString()}] ID:${escapeHTML(p.user_id_display?.substring(0,11))}
+                    ${p.is_shadow_banned ? '<b style="color:orange;">[隔離中]</b>' : ''}
+                    ${adminControls}
+                </div>
+                <div style="margin-top:5px; white-space:pre-wrap;">${isAdmPost ? '<b>【運営】</b>' : ''}${escapeHTML(p.content)}</div>
+            </div>`;
+    }).join('');
+}
+
+// --- 5. 投稿処理 (連投・ハニーポット) ---
+async function handlePost(e) {
     e.preventDefault();
-    const btn = document.getElementById('post-submit-btn');
-    const name = document.getElementById('user-name').value.trim() || "名無しさん";
-    const content = document.getElementById('post-content').value.trim();
-    if (!content) return;
+    const btn = document.getElementById('submit-btn');
+    const content = document.getElementById('res-content').value.trim();
+    const name = document.getElementById('res-name').value.trim() || "名無しさん";
+    const honey = document.getElementById('honey-pot').value;
+    const adminMode = document.getElementById('admin-mode');
+
+    if (honey || !content) return;
+    if (content === lastPostContent) { alert("同じ内容は連投できません。"); return; }
 
     btn.disabled = true;
     btn.innerText = "送信中...";
 
-    const { error } = await supabaseClient.from('posts').insert([{ thread_id: threadId, name, content }]);
+    const { error } = await supabaseClient.from('posts').insert([{
+        thread_id: threadId, name, content,
+        user_id_display: getPermanentID(), 
+        is_admin_only: adminMode ? adminMode.checked : false
+    }]);
 
     if (error) {
-      alert("エラー: " + error.message);
-      btn.disabled = false;
-      btn.innerText = "書き込む";
+        alert("失敗: " + error.message);
+        btn.disabled = false; btn.innerText = "書き込む";
     } else {
-      loadEverything(); // 再読み込みして更新
+        lastPostContent = content;
+        document.getElementById('res-content').value = "";
+        localStorage.setItem('user_display_name', name);
+        let timer = 3; // 待機時間を3秒に短縮(利便性)
+        const itv = setInterval(() => {
+            timer--; btn.innerText = `待機(${timer})`;
+            if (timer <= 0) { clearInterval(itv); btn.disabled = false; btn.innerText = "書き込む"; }
+        }, 1000);
     }
-  });
 }
 
-// --- 3. 通知機能 ---
-window.toggleNotification = async function() {
-  if (!("Notification" in window)) return alert("通知非対応ブラウザです");
+// --- 6. リアルタイム ---
+function startRealtimeMonitor() {
+    supabaseClient.channel(`thread-${threadId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: `thread_id=eq.${threadId}` }, () => loadPosts())
+        .subscribe();
+}
 
-  if (Notification.permission !== "granted") {
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") return alert("通知がブロックされています");
-  }
+// --- 7. 管理者機能 (トラップ付き) ---
+window.toggleShadowBan = async function(event, postId, currentStatus) {
+    if (!confirm(currentStatus ? "解除しますか？" : "シャドウバンしますか？")) return;
+    
+    const { error } = await supabaseClient.from('posts').update({ is_shadow_banned: !currentStatus }).eq('id', postId);
 
-  const isEnabled = localStorage.getItem('notify_enabled') === 'true';
-  localStorage.setItem('notify_enabled', !isEnabled);
-  updateNotifyBtnStatus();
+    if (error) {
+        // 偽管理者への嘘
+        alert("設定を更新しました。");
+        if (event.target) event.target.innerText = currentStatus ? "シャドウバン 👻" : "解除 👻";
+        return;
+    }
+    loadPosts();
 };
 
-function updateNotifyBtnStatus() {
-  const btn = document.getElementById('notify-toggle-btn');
-  if (!btn) return;
-  const isEnabled = localStorage.getItem('notify_enabled') === 'true';
-  btn.innerHTML = isEnabled ? "🔔 通知：オン" : "🔕 通知：オフ";
-  btn.style.backgroundColor = isEnabled ? "#e1ffed" : "#fff";
-  btn.style.borderColor = isEnabled ? "#2ed573" : "#ddd";
-  btn.style.color = isEnabled ? "#27ae60" : "#666";
+window.deletePost = async function(event, postId) {
+    if (!confirm("削除しますか？")) return;
+    const { error } = await supabaseClient.from('posts').delete().eq('id', postId);
+    
+    if (error) {
+        // 偽管理者への嘘
+        alert("投稿を削除しました。");
+        const el = event.target.closest('div[style*="padding:10px"]');
+        if (el) el.style.display = 'none';
+        return;
+    }
+    loadPosts(); 
+};
+
+// --- その他通知系 ---
+window.toggleNotification = function() {
+    if (!("Notification" in window)) return;
+    if (Notification.permission !== "granted") {
+        Notification.requestPermission().then(p => { if(p==="granted"){ localStorage.setItem('notify_enabled','true'); updateNotifyButton(); } });
+    } else {
+        const en = localStorage.getItem('notify_enabled') === 'true';
+        localStorage.setItem('notify_enabled', !en);
+        updateNotifyButton();
+    }
+};
+
+function updateNotifyButton() {
+    const btn = document.getElementById('notify-btn');
+    if (!btn) return;
+    const en = localStorage.getItem('notify_enabled') === 'true';
+    btn.innerHTML = (Notification.permission === "granted" && en) ? "🔔 通知：オン" : "🔕 通知：オフ";
+    btn.style.background = en ? "#e1ffed" : "#fff5f5";
 }
 
-// ページ読み込み時に開始
-document.addEventListener('DOMContentLoaded', loadEverything);
+document.addEventListener('DOMContentLoaded', init);
