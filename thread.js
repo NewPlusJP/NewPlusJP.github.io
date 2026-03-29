@@ -1,5 +1,5 @@
 /**
- * NewPlusJP - 掲示板システム (最新順・ログイン連動版)
+ * NewPlusJP - 掲示板システム (最新順・枠付きモダン)
  */
 
 let supabaseClient;
@@ -17,27 +17,17 @@ function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
-/**
- * ログイン情報を入力欄に反映
- */
-function setupUserField() {
-  const savedName = localStorage.getItem('display_name');
-  const nameInput = document.getElementById('user-name');
-  if (savedName && nameInput) {
-    nameInput.value = savedName;
-  }
-}
-
 async function loadEverything() {
   const mainContainer = document.getElementById('single-thread-container');
   if (!mainContainer || !supabaseClient || !threadId) return;
 
+  // 背景を柔らかいグレーに（枠を際立たせるため）
   document.body.style.backgroundColor = "#f5f7f9";
 
   const [tRes, pRes] = await Promise.all([
     supabaseClient.from('threads').select('*').eq('id', threadId).single(),
-    // シャドウバンされていない投稿だけを表示（DBのRLSでも制御されます）
-    supabaseClient.from('posts').select('*').eq('thread_id', threadId).eq('is_shadow_banned', false).order('created_at', { ascending: false })
+    // ★ orderを false (降順) にして最新を上に持ってくる
+    supabaseClient.from('posts').select('*').eq('thread_id', threadId).order('created_at', { ascending: false })
   ]);
 
   if (tRes.error || !tRes.data) {
@@ -47,7 +37,7 @@ async function loadEverything() {
 
   const thread = tRes.data;
   const posts = pRes.data || [];
-  const totalPosts = posts.length + 1;
+  const totalPosts = posts.length + 1; // 1番を含めた総数
 
   let html = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding:0 5px;">
@@ -68,7 +58,7 @@ async function loadEverything() {
     <div id="posts-list">
   `;
 
-  // レス一覧
+  // ① 最新のレス（カード形式の枠）
   html += posts.map((post, index) => {
     const postNumber = totalPosts - index;
     return `
@@ -82,7 +72,7 @@ async function loadEverything() {
     `;
   }).join('');
 
-  // 1番スレ主
+  // ② 1番（スレッド開始メッセージ：一番下に配置）
   html += `
       <div style="text-align:center; margin: 40px 0 15px; color:#ccc; font-size:0.8em; letter-spacing:2px;">--- THREAD START ---</div>
       <div style="background: #f0fff4; border-radius: 12px; padding: 20px; border: 2px dashed #2ed573;">
@@ -96,11 +86,11 @@ async function loadEverything() {
   `;
 
   mainContainer.innerHTML = html;
-  setupUserField(); // 名前自動入力
   setupFormListener();
   updateNotifyBtnStatus();
 }
 
+// 以下、ロジック部分は元のstartWatchingなどを維持してOK
 function setupFormListener() {
   const form = document.getElementById('post-form');
   if (!form) return;
@@ -108,47 +98,22 @@ function setupFormListener() {
     e.preventDefault();
     const btn = document.getElementById('post-submit-btn');
     const content = document.getElementById('post-content').value.trim();
-    const nameInput = document.getElementById('user-name').value.trim();
-    
-    // ログイン名があれば優先、なければ入力、最後は名無し
-    const finalName = nameInput || localStorage.getItem('display_name') || "名無しさん";
-    const userUuid = localStorage.getItem('user_uuid');
-
     if (!content || btn.disabled) return;
 
     btn.disabled = true;
     btn.innerText = "送信中...";
-
-    // IPアドレス取得
-    let currentIp = "unknown";
-    try {
-      const ipRes = await fetch('https://api.ipify.org?format=json');
-      const ipData = await ipRes.json();
-      currentIp = ipData.ip;
-    } catch (e) { console.error("IP取得失敗", e); }
-
-    const { error } = await supabaseClient.from('posts').insert([{ 
+    await supabaseClient.from('posts').insert([{ 
       thread_id: threadId, 
-      name: finalName, 
-      content: content,
-      user_id_display: userUuid, // UUID紐付け
-      ip_address: currentIp       // IP保存
+      name: document.getElementById('user-name').value.trim() || "名無しさん", 
+      content 
     }]);
-
-    if (error) {
-      alert("投稿に失敗しました。制限されている可能性があります。");
-      console.error(error);
-    } else {
-      document.getElementById('post-content').value = "";
-      loadEverything();
-    }
-    
+    document.getElementById('post-content').value = "";
     btn.disabled = false;
     btn.innerText = "書き込む";
+    // リアルタイム側で更新されるが念のため
+    loadEverything();
   };
 }
-
-// ... リアルタイム通知等の残りの関数（startWatching, toggleNotification等）はそのまま維持 ...
 
 function startWatching() {
   if (!supabaseClient || !threadId) return;
@@ -179,74 +144,3 @@ document.addEventListener('DOMContentLoaded', () => {
   loadEverything();
   startWatching();
 });
-
-// URLのパラメータからスレッドID (?id=xxx) を取得
-const params = new URLSearchParams(window.location.search);
-const threadId = params.get('id');
-
-/**
- * スレッドの中身とレス一覧を表示する
- */
-async function loadFullThread() {
-    if (!threadId) return;
-
-    // 1. 親スレッド（1番目）の情報を取得
-    const { data: thread, error: tError } = await supabase.from('threads')
-        .select('*')
-        .eq('id', threadId)
-        .single();
-
-    if (thread) {
-        // タイトルと1レス目を表示
-        document.getElementById('thread-title-display').innerText = thread.title;
-        document.getElementById('thread-master-post').innerHTML = `
-            <div style="font-size:0.85em; color:#888;">1: <b>${thread.name}</b> ${new Date(thread.created_at).toLocaleString()}</div>
-            <div style="margin-top:10px; white-space:pre-wrap;">${thread.content}</div>
-        `;
-    }
-
-    // 2. 返信（postsテーブル）を全件取得
-    const { data: posts, error: pError } = await supabase.from('posts')
-        .select('*')
-        .eq('thread_id', threadId)
-        .order('created_at', { ascending: true });
-
-    if (posts) {
-        const container = document.getElementById('post-container');
-        container.innerHTML = posts.map((p, index) => `
-            <div class="aa" style="border-left: 3px solid #2ed573; margin-bottom:10px; padding:10px;">
-                <div style="font-size:0.8em; color:#888;">${index + 2}: <b>${p.name}</b> ${new Date(p.created_at).toLocaleString()}</div>
-                <div style="margin-top:5px; white-space:pre-wrap;">${p.content}</div>
-            </div>
-        `).join('');
-    }
-}
-
-/**
- * 返信を投稿する処理
- */
-document.getElementById('post-form').onsubmit = async (e) => {
-    e.preventDefault();
-    
-    // ログインしていればその名前、なければ入力値か「名無しさん」
-    const name = document.getElementById('post-user-name').value 
-                 || localStorage.getItem('display_name') 
-                 || "名無しさん";
-    const content = document.getElementById('post-content').value;
-
-    const { error } = await supabase.from('posts').insert([{
-        thread_id: threadId,
-        name: name,
-        content: content
-    }]);
-
-    if (error) {
-        alert("書き込みに失敗しました。");
-    } else {
-        // 書き込み成功したらリロードして表示を更新
-        location.reload();
-    }
-};
-
-// ページ読み込み時に実行
-document.addEventListener('DOMContentLoaded', loadFullThread);
