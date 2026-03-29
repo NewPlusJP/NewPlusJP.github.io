@@ -216,3 +216,4 @@ async function sendUserIP() {
 document.addEventListener('DOMContentLoaded', () => {
   sendUserIP();
 });
+
