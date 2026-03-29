@@ -5,54 +5,127 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NewPlusJP - 新規登録</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        .auth-container {
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .main-btn {
+            width: 100%;
+            padding: 12px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .main-btn:disabled {
+            background-color: #ccc;
+        }
+        .auth-footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+    </style>
 </head>
-<body class="dark-theme">
-    <div id="app" class="flex-center">
-        <div class="auth-card">
-            <h2>新規アカウント作成</h2>
-            <p class="sub-text">NewPlusJPへようこそ</p>
-            
-            <form id="signup-form">
-                <div class="input-group">
-                    <label>ユーザー名</label>
-                    <input type="text" id="username" placeholder="例: nps_user" required maxlength="15">
-                </div>
-                <div class="input-group">
-                    <label>パスワード</label>
-                    <input type="password" id="password" placeholder="••••••••" required>
-                </div>
-                <button type="submit" class="submit-btn main-btn">登録する</button>
-            </form>
-            
-            <div class="auth-footer">
-                <p>すでにアカウントをお持ちですか？ <a href="login.html">ログイン</a></p>
+<body>
+    <header>
+        <h1>NewPlusJP</h1>
+    </header>
+
+    <div class="aa auth-container">
+        <div id="onecolor"><h2>新規アカウント作成</h2></div>
+        <p style="text-align: center; color: #666;">NewPlusJPへようこそ</p>
+        
+        <form id="signup-form">
+            <div class="input-group">
+                <label for="username">ユーザー名</label>
+                <input type="text" id="username" placeholder="例: nps_user" required maxlength="15">
             </div>
+            <div class="input-group">
+                <label for="password">パスワード</label>
+                <input type="password" id="password" placeholder="••••••••" required>
+            </div>
+            <button type="submit" id="signup-btn" class="main-btn">登録する</button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>すでにアカウントをお持ちですか？ <a href="login.html" style="color: #1a73e8; font-weight: bold;">ログインはこちら</a></p>
+            <p><a href="index.html" style="color: #888;">エントランスに戻る</a></p>
         </div>
     </div>
 
     <script src="config.js"></script>
     <script>
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        /**
+         * config.js で宣言されている supabase インスタンスを使用するため
+         * ここでの再宣言 (const supabase = ...) は削除しました。
+         */
 
-        document.getElementById('signup-form').onsubmit = async (e) => {
+        const signupForm = document.getElementById('signup-form');
+        const signupBtn = document.getElementById('signup-btn');
+
+        signupForm.onsubmit = async (e) => {
             e.preventDefault();
+            
+            signupBtn.disabled = true;
+            signupBtn.innerText = "登録処理中...";
+
             const u = document.getElementById('username').value.trim();
             const p = document.getElementById('password').value;
 
-            // SQLで作成したRPC関数を呼び出し
-            const { data, error } = await supabase.rpc('register_user', { 
-                u_username: u, 
-                u_password: p 
-            });
+            try {
+                // SQLで作成した register_user 関数を呼び出し
+                const { data, error } = await supabase.rpc('register_user', { 
+                    u_username: u, 
+                    u_password: p 
+                });
 
-            if (error) {
-                alert("登録に失敗しました。別の名前を試してください。");
-            } else {
-                alert("登録が完了しました！ログインしてください。");
-                window.location.href = "login.html";
+                if (error) {
+                    // ユニーク制約エラーなどの場合
+                    alert("登録に失敗しました。このユーザー名は既に使われている可能性があります。");
+                    signupBtn.disabled = false;
+                    signupBtn.innerText = "登録する";
+                } else {
+                    alert("登録が完了しました！ログイン画面へ移動します。");
+                    window.location.href = "login.html";
+                }
+            } catch (err) {
+                console.error("Signup Error:", err);
+                alert("エラーが発生しました。通信環境を確認してください。");
+                signupBtn.disabled = false;
+                signupBtn.innerText = "登録する";
             }
         };
+
+        // ダークモードの引き継ぎ
+        document.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('theme') === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.body.style.backgroundColor = '#1a1a1a';
+                document.body.style.color = '#f0f0f0';
+            }
+        });
     </script>
 </body>
 </html>

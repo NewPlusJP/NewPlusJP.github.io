@@ -179,3 +179,74 @@ document.addEventListener('DOMContentLoaded', () => {
   loadEverything();
   startWatching();
 });
+
+// URLのパラメータからスレッドID (?id=xxx) を取得
+const params = new URLSearchParams(window.location.search);
+const threadId = params.get('id');
+
+/**
+ * スレッドの中身とレス一覧を表示する
+ */
+async function loadFullThread() {
+    if (!threadId) return;
+
+    // 1. 親スレッド（1番目）の情報を取得
+    const { data: thread, error: tError } = await supabase.from('threads')
+        .select('*')
+        .eq('id', threadId)
+        .single();
+
+    if (thread) {
+        // タイトルと1レス目を表示
+        document.getElementById('thread-title-display').innerText = thread.title;
+        document.getElementById('thread-master-post').innerHTML = `
+            <div style="font-size:0.85em; color:#888;">1: <b>${thread.name}</b> ${new Date(thread.created_at).toLocaleString()}</div>
+            <div style="margin-top:10px; white-space:pre-wrap;">${thread.content}</div>
+        `;
+    }
+
+    // 2. 返信（postsテーブル）を全件取得
+    const { data: posts, error: pError } = await supabase.from('posts')
+        .select('*')
+        .eq('thread_id', threadId)
+        .order('created_at', { ascending: true });
+
+    if (posts) {
+        const container = document.getElementById('post-container');
+        container.innerHTML = posts.map((p, index) => `
+            <div class="aa" style="border-left: 3px solid #2ed573; margin-bottom:10px; padding:10px;">
+                <div style="font-size:0.8em; color:#888;">${index + 2}: <b>${p.name}</b> ${new Date(p.created_at).toLocaleString()}</div>
+                <div style="margin-top:5px; white-space:pre-wrap;">${p.content}</div>
+            </div>
+        `).join('');
+    }
+}
+
+/**
+ * 返信を投稿する処理
+ */
+document.getElementById('post-form').onsubmit = async (e) => {
+    e.preventDefault();
+    
+    // ログインしていればその名前、なければ入力値か「名無しさん」
+    const name = document.getElementById('post-user-name').value 
+                 || localStorage.getItem('display_name') 
+                 || "名無しさん";
+    const content = document.getElementById('post-content').value;
+
+    const { error } = await supabase.from('posts').insert([{
+        thread_id: threadId,
+        name: name,
+        content: content
+    }]);
+
+    if (error) {
+        alert("書き込みに失敗しました。");
+    } else {
+        // 書き込み成功したらリロードして表示を更新
+        location.reload();
+    }
+};
+
+// ページ読み込み時に実行
+document.addEventListener('DOMContentLoaded', loadFullThread);

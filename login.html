@@ -78,8 +78,10 @@
 
     <script src="config.js"></script>
     <script>
-        // Supabaseの初期化
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        /**
+         * ここにあった const supabase = ... の行は削除しました。
+         * config.js 内で宣言されている supabase インスタンスをそのまま使用します。
+         */
 
         const loginForm = document.getElementById('login-form');
         const loginBtn = document.getElementById('login-btn');
@@ -87,7 +89,6 @@
         loginForm.onsubmit = async (e) => {
             e.preventDefault();
             
-            // ボタンを無効化して連打防止
             loginBtn.disabled = true;
             loginBtn.innerText = "認証中...";
 
@@ -95,7 +96,7 @@
             const p = document.getElementById('password').value;
 
             try {
-                // PostgreSQLの関数 'login_user' を呼び出し
+                // SQL側の login_user 関数を呼び出し
                 const { data, error } = await supabase.rpc('login_user', { 
                     u_username: u, 
                     u_password: p 
@@ -104,11 +105,11 @@
                 if (error) throw error;
 
                 if (data && data.id) {
-                    // 成功：ブラウザの保存領域（LocalStorage）にユーザー情報を書き込む
+                    // ブラウザにユーザー情報を保存
                     localStorage.setItem('user_uuid', data.id);
                     localStorage.setItem('display_name', data.username);
                     
-                    // 管理者フラグの判定（任意：必要なら）
+                    // admin判定
                     if (data.username === 'admin') {
                         localStorage.setItem('is_admin', 'true');
                         localStorage.setItem('admin_name', data.username);
@@ -116,24 +117,25 @@
 
                     alert("ログインしました！");
                     
-                    // index.htmlへ移動（キャッシュを避けるため replace を使用）
+                    // 強制的にトップページへリダイレクト
                     window.location.replace("index.html");
                 } else {
-                    alert("ユーザー名またはパスワードが違います。");
+                    alert("ユーザー名またはパスワードが正しくありません。");
                     loginBtn.disabled = false;
                     loginBtn.innerText = "ログインする";
                 }
             } catch (err) {
                 console.error("Login Error:", err);
-                alert("エラーが発生しました: " + (err.message || "接続を確認してください"));
+                alert("ログインエラー: " + (err.message || "接続エラー"));
                 loginBtn.disabled = false;
                 loginBtn.innerText = "ログインする";
             }
         };
 
-        // ダークモードの適用（index.htmlの設定を引き継ぐ場合）
+        // ダークモード設定の引き継ぎ
         document.addEventListener('DOMContentLoaded', () => {
-            if (localStorage.getItem('theme') === 'dark') {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
                 document.documentElement.setAttribute('data-theme', 'dark');
                 document.body.style.backgroundColor = '#1a1a1a';
                 document.body.style.color = '#f0f0f0';
