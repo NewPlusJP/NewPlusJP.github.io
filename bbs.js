@@ -1,23 +1,16 @@
 /**
- * NewPlusJP - BBS Main System (Unified Version)
- * ログイン名の自動入力 & UUID紐付け & 管理者機能 & 一般ユーザー認証
+ * NewPlusJP - BBS Main System (Reflect-Fix Version)
  */
 
 const supabaseClient = (window.supabase && typeof SUPABASE_URL !== 'undefined') 
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
   : null;
 
-/**
- * HTMLエスケープ（XSS対策）
- */
 function escapeHTML(str) {
   if (!str) return "";
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
-/**
- * 文字列を数値ハッシュに変換（管理者パスワード照合用）
- */
 function getHashCode(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -29,27 +22,46 @@ function getHashCode(str) {
 }
 
 /**
- * ログイン情報の反映
- * 名前入力欄へのセットと、エントランスの表示切り替え
+ * ログイン情報の反映（ここを大幅強化）
  */
 function initUserInfo() {
   const savedName = localStorage.getItem('display_name');
-  const nameInput = document.getElementById('user-name'); 
   
-  // 1. スレ立てフォームの名前欄にセット
-  if (savedName && nameInput) {
-    nameInput.value = savedName;
-  }
-
-  // 2. エントランス（index.html）の表示切り替え
   const guestDiv = document.getElementById('auth-guest');
   const userDiv = document.getElementById('auth-user');
   const nameDisplay = document.getElementById('user-name-display');
+  const nameInput = document.getElementById('user-name'); // スレ立てフォーム
 
-  if (savedName && guestDiv && userDiv) {
-    guestDiv.style.display = 'none';
-    userDiv.style.display = 'block';
-    if (nameDisplay) nameDisplay.innerText = savedName;
+  if (savedName && savedName !== "undefined") {
+    // 1. エントランスのリンクを「ようこそ」に切り替え
+    if (guestDiv) guestDiv.style.display = 'none';
+    if (userDiv) {
+        userDiv.style.display = 'block';
+        userDiv.style.background = 'rgba(46, 213, 115, 0.1)'; // ログイン中を薄緑で強調
+        userDiv.style.padding = '8px';
+        userDiv.style.borderRadius = '5px';
+        userDiv.style.border = '1px solid #2ed573';
+    }
+    
+    // 2. ユーザー名を表示
+    if (nameDisplay) {
+        nameDisplay.innerText = savedName;
+        nameDisplay.style.color = '#2ed573'; 
+    }
+
+    // 3. スレ立てフォームの名前欄を「強制固定」
+    if (nameInput) {
+      nameInput.value = savedName;
+      nameInput.readOnly = true; // ログイン中は変更不可にして本人証明とする
+      nameInput.style.backgroundColor = '#eee';
+      nameInput.style.cursor = 'not-allowed';
+    }
+    console.log("Login check: OK (" + savedName + ")");
+  } else {
+    // 未ログイン時
+    if (guestDiv) guestDiv.style.display = 'block';
+    if (userDiv) userDiv.style.display = 'none';
+    console.log("Login check: No session");
   }
 }
 
@@ -71,7 +83,6 @@ async function loadThreads() {
   }
 
   const isAdmin = localStorage.getItem('is_admin') === 'true';
-
   const sortedThreads = [...(threads || [])].sort((a, b) => 
     (b.is_admin_thread ? 1 : 0) - (a.is_admin_thread ? 1 : 0)
   );
@@ -101,23 +112,15 @@ async function loadThreads() {
 }
 
 /**
- * 2. 認証関連 (一般ユーザー・管理者)
+ * 2. 認証関連
  */
-
-// 管理者ログイン
 window.handleAdminLogin = async function() {
   const name = document.getElementById('admin-user').value.trim();
   const pass = document.getElementById('admin-pass').value.trim();
   if (!name || !pass) return;
 
   const hashedPass = getHashCode(pass);
-
-  const { data, error } = await supabaseClient
-    .from('user_accounts')
-    .select('username')
-    .eq('username', name)
-    .eq('password', hashedPass)
-    .maybeSingle();
+  const { data } = await supabaseClient.from('user_accounts').select('username').eq('username', name).eq('password', hashedPass).maybeSingle();
 
   if (data) {
     alert("管理者認証成功！");
@@ -126,35 +129,25 @@ window.handleAdminLogin = async function() {
     localStorage.setItem('display_name', name); 
     location.reload();
   } else {
-    alert("認証失敗：ユーザー名またはパスワードが違います。");
+    alert("認証失敗");
   }
 };
 
-// 共通ログアウト
 window.userLogout = function() {
   if(!confirm("ログアウトしますか？")) return;
-  localStorage.removeItem('is_admin');
-  localStorage.removeItem('admin_name');
-  localStorage.removeItem('display_name');
-  localStorage.removeItem('user_uuid');
+  localStorage.clear(); // すべてクリアして確実にリセット
   location.reload();
 };
-
-// 下位互換用
 window.logout = window.userLogout;
 
-/**
- * スレッド削除（管理者のみ）
- */
 window.deleteThread = async function(id) {
-  if (!confirm("このスレッドを完全に削除しますか？")) return;
-  const { error } = await supabaseClient.from('threads').delete().eq('id', id);
-  if (error) alert("削除に失敗しました");
+  if (!confirm("削除しますか？")) return;
+  await supabaseClient.from('threads').delete().eq('id', id);
   loadThreads();
 };
 
 /**
- * 3. 新規スレッド作成
+ * 3. スレッド作成
  */
 const threadForm = document.getElementById('thread-form');
 if (threadForm) {
@@ -162,69 +155,39 @@ if (threadForm) {
     e.preventDefault();
     const btn = document.getElementById('create-btn');
     const title = document.getElementById('thread-title').value.trim();
-    
-    const loginName = localStorage.getItem('display_name');
-    const name = document.getElementById('user-name').value.trim() || loginName || "名無しさん";
-    
+    const name = document.getElementById('user-name').value.trim() || localStorage.getItem('display_name') || "名無しさん";
     const content = document.getElementById('content').value.trim();
     const adminCheck = document.getElementById('is-admin-thread');
     const userUuid = localStorage.getItem('user_uuid');
 
     if (!title || !content) return;
-
     btn.disabled = true;
     btn.innerText = "作成中...";
 
-    const { data, error } = await supabaseClient
-      .from('threads')
-      .insert([{ 
-        title: title, 
-        name: name, 
-        content: content, 
-        is_admin_thread: adminCheck ? adminCheck.checked : false,
-        user_id_display: userUuid // UUIDを保存（テーブルにカラムがある場合）
-      }])
-      .select(); 
+    const { data, error } = await supabaseClient.from('threads').insert([{ 
+      title, name, content, 
+      is_admin_thread: adminCheck ? adminCheck.checked : false,
+      user_id_display: userUuid 
+    }]).select(); 
     
-    if (data && data[0]) {
-      window.location.href = `thread.html?id=${data[0].id}`;
-    } else {
-      alert("失敗: " + (error ? error.message : "不明なエラー"));
-      btn.disabled = false;
-      btn.innerText = "スレッドを作成する";
-    }
+    if (data && data[0]) window.location.href = `thread.html?id=${data[0].id}`;
+    else { alert("失敗"); btn.disabled = false; }
   });
 }
 
-/**
- * 管理者状態のチェック（UI表示切り替え）
- */
 function checkAdminStatus() {
   const isAdmin = localStorage.getItem('is_admin') === 'true';
-  const adminConsole = document.getElementById('admin-console');
-  const adminInputs = document.getElementById('admin-auth-inputs');
-  const optionContainer = document.getElementById('admin-thread-option');
-
   if (isAdmin) {
-    if (adminConsole) adminConsole.style.display = 'block';
-    if (adminInputs) adminInputs.style.display = 'none';
-    if (document.getElementById('admin-name')) {
-        document.getElementById('admin-name').innerText = localStorage.getItem('admin_name');
-    }
-    if (optionContainer) {
-      optionContainer.innerHTML = `
-        <label style="color: #ff4757; font-weight: bold; cursor:pointer;">
-          <input type="checkbox" id="is-admin-thread"> 📢 運営専用（ピン留め）として作成
-        </label>`;
-    }
+    if (document.getElementById('admin-console')) document.getElementById('admin-console').style.display = 'block';
+    if (document.getElementById('admin-auth-inputs')) document.getElementById('admin-auth-inputs').style.display = 'none';
+    if (document.getElementById('admin-name')) document.getElementById('admin-name').innerText = localStorage.getItem('admin_name');
+    const opt = document.getElementById('admin-thread-option');
+    if (opt) opt.innerHTML = `<label style="color:#ff4757; font-weight:bold;"><input type="checkbox" id="is-admin-thread"> 📢 運営専用スレッド</label>`;
   }
 }
 
-/**
- * 初期化
- */
 document.addEventListener('DOMContentLoaded', () => {
   loadThreads();
   checkAdminStatus();
-  initUserInfo(); // 名前セット & エントランスUI更新
+  initUserInfo(); 
 });

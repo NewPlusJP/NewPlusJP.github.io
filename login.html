@@ -5,62 +5,140 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NewPlusJP - ログイン</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        /* ログイン画面専用の簡易スタイル調整 */
+        .auth-container {
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .main-btn {
+            width: 100%;
+            padding: 12px;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .main-btn:disabled {
+            background-color: #ccc;
+        }
+        .auth-footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+    </style>
 </head>
-<body class="dark-theme">
-    <div id="app" class="flex-center">
-        <div class="auth-card">
-            <h2>ログイン</h2>
-            <p class="sub-text">おかえりなさい</p>
-            
-            <form id="login-form">
-                <div class="input-group">
-                    <label>ユーザー名</label>
-                    <input type="text" id="username" required>
-                </div>
-                <div class="input-group">
-                    <label>パスワード</label>
-                    <input type="password" id="password" required>
-                </div>
-                <button type="submit" class="submit-btn main-btn">ログイン</button>
-            </form>
+<body>
+    <header>
+        <h1>NewPlusJP</h1>
+    </header>
 
-            <div class="auth-footer">
-                <p>アカウントがない場合 <a href="signup.html">新規登録</a></p>
+    <div class="aa auth-container">
+        <div id="onecolor"><h2>ログイン</h2></div>
+        <p style="text-align: center; color: #666;">登録した情報を入力してください</p>
+        
+        <form id="login-form">
+            <div class="input-group">
+                <label for="username">ユーザー名</label>
+                <input type="text" id="username" placeholder="名前を入力" required>
             </div>
+            <div class="input-group">
+                <label for="password">パスワード</label>
+                <input type="password" id="password" placeholder="パスワードを入力" required>
+            </div>
+            <button type="submit" id="login-btn" class="main-btn">ログインする</button>
+        </form>
+
+        <div class="auth-footer">
+            <p>アカウントを持っていない？ <a href="signup.html" style="color: #3498db; font-weight: bold;">新規登録はこちら</a></p>
+            <p><a href="index.html" style="color: #888;">エントランスに戻る</a></p>
         </div>
     </div>
 
     <script src="config.js"></script>
     <script>
+        // Supabaseの初期化
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        document.getElementById('login-form').onsubmit = async (e) => {
+        const loginForm = document.getElementById('login-form');
+        const loginBtn = document.getElementById('login-btn');
+
+        loginForm.onsubmit = async (e) => {
             e.preventDefault();
+            
+            // ボタンを無効化して連打防止
+            loginBtn.disabled = true;
+            loginBtn.innerText = "認証中...";
+
             const u = document.getElementById('username').value.trim();
             const p = document.getElementById('password').value;
 
-            const { data, error } = await supabase.rpc('login_user', { 
-                u_username: u, 
-                u_password: p 
-            });
+            try {
+                // PostgreSQLの関数 'login_user' を呼び出し
+                const { data, error } = await supabase.rpc('login_user', { 
+                    u_username: u, 
+                    u_password: p 
+                });
 
-            if (data && data.id) {
-                // 大事な情報をブラウザに保存
-                localStorage.setItem('user_uuid', data.id);
-                localStorage.setItem('display_name', data.username);
-                
-                // 管理者判断（adminという名前ならフラグを立てる例）
-                if (data.username === 'admin') {
-                    localStorage.setItem('is_admin', 'true');
+                if (error) throw error;
+
+                if (data && data.id) {
+                    // 成功：ブラウザの保存領域（LocalStorage）にユーザー情報を書き込む
+                    localStorage.setItem('user_uuid', data.id);
+                    localStorage.setItem('display_name', data.username);
+                    
+                    // 管理者フラグの判定（任意：必要なら）
+                    if (data.username === 'admin') {
+                        localStorage.setItem('is_admin', 'true');
+                        localStorage.setItem('admin_name', data.username);
+                    }
+
+                    alert("ログインしました！");
+                    
+                    // index.htmlへ移動（キャッシュを避けるため replace を使用）
+                    window.location.replace("index.html");
+                } else {
+                    alert("ユーザー名またはパスワードが違います。");
+                    loginBtn.disabled = false;
+                    loginBtn.innerText = "ログインする";
                 }
-
-                alert("ログイン成功");
-                window.location.href = "index.html";
-            } else {
-                alert("ユーザー名またはパスワードが正しくありません。");
+            } catch (err) {
+                console.error("Login Error:", err);
+                alert("エラーが発生しました: " + (err.message || "接続を確認してください"));
+                loginBtn.disabled = false;
+                loginBtn.innerText = "ログインする";
             }
         };
+
+        // ダークモードの適用（index.htmlの設定を引き継ぐ場合）
+        document.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('theme') === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.body.style.backgroundColor = '#1a1a1a';
+                document.body.style.color = '#f0f0f0';
+            }
+        });
     </script>
 </body>
 </html>
