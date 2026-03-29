@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NewPlusJP - 新規登録</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="dark-theme">
+    <div id="app" class="flex-center">
+        <div class="auth-card">
+            <h2>新規アカウント作成</h2>
+            <p class="sub-text">NewPlusJPへようこそ</p>
+            
+            <form id="signup-form">
+                <div class="input-group">
+                    <label>ユーザー名</label>
+                    <input type="text" id="username" placeholder="例: nps_user" required maxlength="15">
+                </div>
+                <div class="input-group">
+                    <label>パスワード</label>
+                    <input type="password" id="password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="submit-btn main-btn">登録する</button>
+            </form>
+            
+            <div class="auth-footer">
+                <p>すでにアカウントをお持ちですか？ <a href="login.html">ログイン</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script>
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        document.getElementById('signup-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const u = document.getElementById('username').value.trim();
+            const p = document.getElementById('password').value;
+
+            // SQLで作成したRPC関数を呼び出し
+            const { data, error } = await supabase.rpc('register_user', { 
+                u_username: u, 
+                u_password: p 
+            });
+
+            if (error) {
+                alert("登録に失敗しました。別の名前を試してください。");
+            } else {
+                alert("登録が完了しました！ログインしてください。");
+                window.location.href = "login.html";
+            }
+        };
+    </script>
+</body>
+</html>

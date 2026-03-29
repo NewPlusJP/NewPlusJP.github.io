@@ -1,5 +1,5 @@
 /**
- * NewPlusJP - 掲示板システム (最新順・枠付きモダン)
+ * NewPlusJP - 掲示板システム (最新順・ログイン連動版)
  */
 
 let supabaseClient;
@@ -17,17 +17,27 @@ function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
+/**
+ * ログイン情報を入力欄に反映
+ */
+function setupUserField() {
+  const savedName = localStorage.getItem('display_name');
+  const nameInput = document.getElementById('user-name');
+  if (savedName && nameInput) {
+    nameInput.value = savedName;
+  }
+}
+
 async function loadEverything() {
   const mainContainer = document.getElementById('single-thread-container');
   if (!mainContainer || !supabaseClient || !threadId) return;
 
-  // 背景を柔らかいグレーに（枠を際立たせるため）
   document.body.style.backgroundColor = "#f5f7f9";
 
   const [tRes, pRes] = await Promise.all([
     supabaseClient.from('threads').select('*').eq('id', threadId).single(),
-    // ★ orderを false (降順) にして最新を上に持ってくる
-    supabaseClient.from('posts').select('*').eq('thread_id', threadId).order('created_at', { ascending: false })
+    // シャドウバンされていない投稿だけを表示（DBのRLSでも制御されます）
+    supabaseClient.from('posts').select('*').eq('thread_id', threadId).eq('is_shadow_banned', false).order('created_at', { ascending: false })
   ]);
 
   if (tRes.error || !tRes.data) {
@@ -37,7 +47,7 @@ async function loadEverything() {
 
   const thread = tRes.data;
   const posts = pRes.data || [];
-  const totalPosts = posts.length + 1; // 1番を含めた総数
+  const totalPosts = posts.length + 1;
 
   let html = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding:0 5px;">
@@ -58,7 +68,7 @@ async function loadEverything() {
     <div id="posts-list">
   `;
 
-  // ① 最新のレス（カード形式の枠）
+  // レス一覧
   html += posts.map((post, index) => {
     const postNumber = totalPosts - index;
     return `
@@ -72,7 +82,7 @@ async function loadEverything() {
     `;
   }).join('');
 
-  // ② 1番（スレッド開始メッセージ：一番下に配置）
+  // 1番スレ主
   html += `
       <div style="text-align:center; margin: 40px 0 15px; color:#ccc; font-size:0.8em; letter-spacing:2px;">--- THREAD START ---</div>
       <div style="background: #f0fff4; border-radius: 12px; padding: 20px; border: 2px dashed #2ed573;">
@@ -86,11 +96,11 @@ async function loadEverything() {
   `;
 
   mainContainer.innerHTML = html;
+  setupUserField(); // 名前自動入力
   setupFormListener();
   updateNotifyBtnStatus();
 }
 
-// 以下、ロジック部分は元のstartWatchingなどを維持してOK
 function setupFormListener() {
   const form = document.getElementById('post-form');
   if (!form) return;
@@ -98,22 +108,47 @@ function setupFormListener() {
     e.preventDefault();
     const btn = document.getElementById('post-submit-btn');
     const content = document.getElementById('post-content').value.trim();
+    const nameInput = document.getElementById('user-name').value.trim();
+    
+    // ログイン名があれば優先、なければ入力、最後は名無し
+    const finalName = nameInput || localStorage.getItem('display_name') || "名無しさん";
+    const userUuid = localStorage.getItem('user_uuid');
+
     if (!content || btn.disabled) return;
 
     btn.disabled = true;
     btn.innerText = "送信中...";
-    await supabaseClient.from('posts').insert([{ 
+
+    // IPアドレス取得
+    let currentIp = "unknown";
+    try {
+      const ipRes = await fetch('https://api.ipify.org?format=json');
+      const ipData = await ipRes.json();
+      currentIp = ipData.ip;
+    } catch (e) { console.error("IP取得失敗", e); }
+
+    const { error } = await supabaseClient.from('posts').insert([{ 
       thread_id: threadId, 
-      name: document.getElementById('user-name').value.trim() || "名無しさん", 
-      content 
+      name: finalName, 
+      content: content,
+      user_id_display: userUuid, // UUID紐付け
+      ip_address: currentIp       // IP保存
     }]);
-    document.getElementById('post-content').value = "";
+
+    if (error) {
+      alert("投稿に失敗しました。制限されている可能性があります。");
+      console.error(error);
+    } else {
+      document.getElementById('post-content').value = "";
+      loadEverything();
+    }
+    
     btn.disabled = false;
     btn.innerText = "書き込む";
-    // リアルタイム側で更新されるが念のため
-    loadEverything();
   };
 }
+
+// ... リアルタイム通知等の残りの関数（startWatching, toggleNotification等）はそのまま維持 ...
 
 function startWatching() {
   if (!supabaseClient || !threadId) return;

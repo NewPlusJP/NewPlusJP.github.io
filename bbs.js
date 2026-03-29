@@ -1,32 +1,49 @@
 /**
- * NewPlusJP - BBS Main System
- * 管理者ログイン修正（数値ハッシュ対応）・スレッド一覧・スレ立て
+ * NewPlusJP - BBS Main System (Full Version)
+ * ログイン名の自動入力 & UUID紐付け & 管理者機能
  */
 
 const supabaseClient = (window.supabase && typeof SUPABASE_URL !== 'undefined') 
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
   : null;
 
+/**
+ * HTMLエスケープ（XSS対策）
+ */
 function escapeHTML(str) {
   if (!str) return "";
   return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
 /**
- * 文字列を数値ハッシュに変換する関数
- * (2103650130 などの形式に対応)
+ * 文字列を数値ハッシュに変換（管理者パスワード照合用）
  */
 function getHashCode(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
-    hash |= 0; // 32ビット整数に変換
+    hash |= 0;
   }
-  return Math.abs(hash).toString(); // 正の数にして文字列として返す
+  return Math.abs(hash).toString();
 }
 
-// --- 1. スレッド一覧表示 ---
+/**
+ * ログイン情報の反映
+ * 名前入力欄にログイン済みの名前を自動セット
+ */
+function initUserInfo() {
+  const savedName = localStorage.getItem('display_name');
+  const nameInput = document.getElementById('user-name'); 
+
+  if (savedName && nameInput) {
+    nameInput.value = savedName;
+  }
+}
+
+/**
+ * 1. スレッド一覧表示
+ */
 async function loadThreads() {
   const container = document.getElementById('thread-container');
   if (!container || !supabaseClient) return;
@@ -37,12 +54,13 @@ async function loadThreads() {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error("取得失敗:", error);
+    console.error("スレッド取得失敗:", error);
     return;
   }
 
   const isAdmin = localStorage.getItem('is_admin') === 'true';
 
+  // 運営スレッドを一番上に持ってくるソート
   const sortedThreads = [...(threads || [])].sort((a, b) => 
     (b.is_admin_thread ? 1 : 0) - (a.is_admin_thread ? 1 : 0)
   );
@@ -71,40 +89,49 @@ async function loadThreads() {
   }).join('');
 }
 
-// --- 2. 管理者認証 (ハッシュ化対応版) ---
+/**
+ * 2. 管理者認証 (ハッシュ化対応)
+ */
 window.handleAdminLogin = async function() {
   const name = document.getElementById('admin-user').value.trim();
   const pass = document.getElementById('admin-pass').value.trim();
   if (!name || !pass) return;
 
-  // 入力されたパスワードを数値ハッシュに変換
   const hashedPass = getHashCode(pass);
 
   const { data, error } = await supabaseClient
     .from('user_accounts')
     .select('username')
     .eq('username', name)
-    .eq('password', hashedPass) // ハッシュ化した数値で照合
+    .eq('password', hashedPass)
     .maybeSingle();
 
   if (data) {
     alert("管理者認証成功！");
     localStorage.setItem('is_admin', 'true');
     localStorage.setItem('admin_name', name);
+    localStorage.setItem('display_name', name); // 管理者名を表示名にセット
     location.reload();
   } else {
     alert("認証に失敗しました。ユーザー名またはパスワードが違います。");
-    console.log("Hashed Input:", hashedPass); // デバッグ用
   }
 };
 
+/**
+ * ログアウト
+ */
 window.logout = function() {
   if(!confirm("ログアウトしますか？")) return;
   localStorage.removeItem('is_admin');
   localStorage.removeItem('admin_name');
+  localStorage.removeItem('display_name');
+  localStorage.removeItem('user_uuid');
   location.reload();
 };
 
+/**
+ * スレッド削除（管理者のみ）
+ */
 window.deleteThread = async function(id) {
   if (!confirm("このスレッドを完全に削除しますか？")) return;
   const { error } = await supabaseClient.from('threads').delete().eq('id', id);
@@ -112,27 +139,41 @@ window.deleteThread = async function(id) {
   loadThreads();
 };
 
-// --- 3. 新規スレッド作成 ---
+/**
+ * 3. 新規スレッド作成
+ */
 const threadForm = document.getElementById('thread-form');
 if (threadForm) {
   threadForm.addEventListener('submit', async function(e) {
     e.preventDefault();
     const btn = document.getElementById('create-btn');
     const title = document.getElementById('thread-title').value.trim();
-    const name = document.getElementById('user-name').value.trim() || "名無しさん";
+    
+    // 入力がない場合はログイン名、それもなければ「名無しさん」
+    const loginName = localStorage.getItem('display_name');
+    const name = document.getElementById('user-name').value.trim() || loginName || "名無しさん";
+    
     const content = document.getElementById('content').value.trim();
     const adminCheck = document.getElementById('is-admin-thread');
+
+    // ログイン中のUUID（シャドウバン等の紐付け用）
+    const userUuid = localStorage.getItem('user_uuid');
 
     if (!title || !content) return;
 
     btn.disabled = true;
     btn.innerText = "作成中...";
 
+    // データベースへの挿入
     const { data, error } = await supabaseClient
       .from('threads')
       .insert([{ 
-        title, name, content, 
-        is_admin_thread: adminCheck ? adminCheck.checked : false 
+        title: title, 
+        name: name, 
+        content: content, 
+        is_admin_thread: adminCheck ? adminCheck.checked : false,
+        // threadsテーブルにuser_id_displayカラムがあれば以下を有効化
+        // user_id_display: userUuid 
       }])
       .select(); 
     
@@ -146,6 +187,9 @@ if (threadForm) {
   });
 }
 
+/**
+ * 管理者状態のチェック（UI表示切り替え）
+ */
 function checkAdminStatus() {
   const isAdmin = localStorage.getItem('is_admin') === 'true';
   const adminConsole = document.getElementById('admin-console');
@@ -164,7 +208,11 @@ function checkAdminStatus() {
   }
 }
 
+/**
+ * 初期化
+ */
 document.addEventListener('DOMContentLoaded', () => {
   loadThreads();
   checkAdminStatus();
+  initUserInfo(); // 名前自動入力の実行
 });

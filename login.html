@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NewPlusJP - ログイン</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="dark-theme">
+    <div id="app" class="flex-center">
+        <div class="auth-card">
+            <h2>ログイン</h2>
+            <p class="sub-text">おかえりなさい</p>
+            
+            <form id="login-form">
+                <div class="input-group">
+                    <label>ユーザー名</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="input-group">
+                    <label>パスワード</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="submit-btn main-btn">ログイン</button>
+            </form>
+
+            <div class="auth-footer">
+                <p>アカウントがない場合 <a href="signup.html">新規登録</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script>
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        document.getElementById('login-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const u = document.getElementById('username').value.trim();
+            const p = document.getElementById('password').value;
+
+            const { data, error } = await supabase.rpc('login_user', { 
+                u_username: u, 
+                u_password: p 
+            });
+
+            if (data && data.id) {
+                // 大事な情報をブラウザに保存
+                localStorage.setItem('user_uuid', data.id);
+                localStorage.setItem('display_name', data.username);
+                
+                // 管理者判断（adminという名前ならフラグを立てる例）
+                if (data.username === 'admin') {
+                    localStorage.setItem('is_admin', 'true');
+                }
+
+                alert("ログイン成功");
+                window.location.href = "index.html";
+            } else {
+                alert("ユーザー名またはパスワードが正しくありません。");
+            }
+        };
+    </script>
+</body>
+</html>
