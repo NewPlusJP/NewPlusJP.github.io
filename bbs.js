@@ -1,6 +1,6 @@
 /**
- * NewPlusJP - BBS Main System (Full Version)
- * ログイン名の自動入力 & UUID紐付け & 管理者機能
+ * NewPlusJP - BBS Main System (Unified Version)
+ * ログイン名の自動入力 & UUID紐付け & 管理者機能 & 一般ユーザー認証
  */
 
 const supabaseClient = (window.supabase && typeof SUPABASE_URL !== 'undefined') 
@@ -30,14 +30,26 @@ function getHashCode(str) {
 
 /**
  * ログイン情報の反映
- * 名前入力欄にログイン済みの名前を自動セット
+ * 名前入力欄へのセットと、エントランスの表示切り替え
  */
 function initUserInfo() {
   const savedName = localStorage.getItem('display_name');
   const nameInput = document.getElementById('user-name'); 
-
+  
+  // 1. スレ立てフォームの名前欄にセット
   if (savedName && nameInput) {
     nameInput.value = savedName;
+  }
+
+  // 2. エントランス（index.html）の表示切り替え
+  const guestDiv = document.getElementById('auth-guest');
+  const userDiv = document.getElementById('auth-user');
+  const nameDisplay = document.getElementById('user-name-display');
+
+  if (savedName && guestDiv && userDiv) {
+    guestDiv.style.display = 'none';
+    userDiv.style.display = 'block';
+    if (nameDisplay) nameDisplay.innerText = savedName;
   }
 }
 
@@ -60,7 +72,6 @@ async function loadThreads() {
 
   const isAdmin = localStorage.getItem('is_admin') === 'true';
 
-  // 運営スレッドを一番上に持ってくるソート
   const sortedThreads = [...(threads || [])].sort((a, b) => 
     (b.is_admin_thread ? 1 : 0) - (a.is_admin_thread ? 1 : 0)
   );
@@ -90,8 +101,10 @@ async function loadThreads() {
 }
 
 /**
- * 2. 管理者認証 (ハッシュ化対応)
+ * 2. 認証関連 (一般ユーザー・管理者)
  */
+
+// 管理者ログイン
 window.handleAdminLogin = async function() {
   const name = document.getElementById('admin-user').value.trim();
   const pass = document.getElementById('admin-pass').value.trim();
@@ -110,17 +123,15 @@ window.handleAdminLogin = async function() {
     alert("管理者認証成功！");
     localStorage.setItem('is_admin', 'true');
     localStorage.setItem('admin_name', name);
-    localStorage.setItem('display_name', name); // 管理者名を表示名にセット
+    localStorage.setItem('display_name', name); 
     location.reload();
   } else {
-    alert("認証に失敗しました。ユーザー名またはパスワードが違います。");
+    alert("認証失敗：ユーザー名またはパスワードが違います。");
   }
 };
 
-/**
- * ログアウト
- */
-window.logout = function() {
+// 共通ログアウト
+window.userLogout = function() {
   if(!confirm("ログアウトしますか？")) return;
   localStorage.removeItem('is_admin');
   localStorage.removeItem('admin_name');
@@ -129,13 +140,16 @@ window.logout = function() {
   location.reload();
 };
 
+// 下位互換用
+window.logout = window.userLogout;
+
 /**
  * スレッド削除（管理者のみ）
  */
 window.deleteThread = async function(id) {
   if (!confirm("このスレッドを完全に削除しますか？")) return;
   const { error } = await supabaseClient.from('threads').delete().eq('id', id);
-  if (error) alert("削除に失敗しました（権限エラー等）");
+  if (error) alert("削除に失敗しました");
   loadThreads();
 };
 
@@ -149,14 +163,11 @@ if (threadForm) {
     const btn = document.getElementById('create-btn');
     const title = document.getElementById('thread-title').value.trim();
     
-    // 入力がない場合はログイン名、それもなければ「名無しさん」
     const loginName = localStorage.getItem('display_name');
     const name = document.getElementById('user-name').value.trim() || loginName || "名無しさん";
     
     const content = document.getElementById('content').value.trim();
     const adminCheck = document.getElementById('is-admin-thread');
-
-    // ログイン中のUUID（シャドウバン等の紐付け用）
     const userUuid = localStorage.getItem('user_uuid');
 
     if (!title || !content) return;
@@ -164,7 +175,6 @@ if (threadForm) {
     btn.disabled = true;
     btn.innerText = "作成中...";
 
-    // データベースへの挿入
     const { data, error } = await supabaseClient
       .from('threads')
       .insert([{ 
@@ -172,8 +182,7 @@ if (threadForm) {
         name: name, 
         content: content, 
         is_admin_thread: adminCheck ? adminCheck.checked : false,
-        // threadsテーブルにuser_id_displayカラムがあれば以下を有効化
-        // user_id_display: userUuid 
+        user_id_display: userUuid // UUIDを保存（テーブルにカラムがある場合）
       }])
       .select(); 
     
@@ -199,6 +208,9 @@ function checkAdminStatus() {
   if (isAdmin) {
     if (adminConsole) adminConsole.style.display = 'block';
     if (adminInputs) adminInputs.style.display = 'none';
+    if (document.getElementById('admin-name')) {
+        document.getElementById('admin-name').innerText = localStorage.getItem('admin_name');
+    }
     if (optionContainer) {
       optionContainer.innerHTML = `
         <label style="color: #ff4757; font-weight: bold; cursor:pointer;">
@@ -214,5 +226,5 @@ function checkAdminStatus() {
 document.addEventListener('DOMContentLoaded', () => {
   loadThreads();
   checkAdminStatus();
-  initUserInfo(); // 名前自動入力の実行
+  initUserInfo(); // 名前セット & エントランスUI更新
 });
