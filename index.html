@@ -13,7 +13,6 @@
     <div id="online-counter" style="text-align: right; font-size: 0.8em; color: #666; padding-right: 10px;">
       現在 0 人が閲覧中
     </div>
-    <div id="auth-status" style="text-align: right; padding: 10px; font-size: 0.9em; border-bottom: 1px solid #ddd;"></div>
   </header>
 
   <div class="aa">
@@ -21,9 +20,7 @@
     <div class="aa">
       <div id="onecolor"><h2>のもさーばー</h2></div>
       <h3>Discord botの支援などをしています！</h3>
-      <h4>鯖内容</h4>
-      <p>雑談やbot開発などを主にしています
-        <b>Discord botを作りたいけど作り方がわからない方</b>や<b>Discord botを動かしたいけどサーバーがない方</b>はぜひ参加お願いします！
+      <p>雑談やbot開発などを主にしています。
         <a href="https://discord.gg/qrDwaP5Kst">ここから参加！</a>
       </p>
     </div>
@@ -35,6 +32,17 @@
     <a href="threadlist.html" style="font-size: 1.2em; font-weight: bold;">■ 掲示板に入る（スレッド一覧）</a><br>
     <a href="privacy.html" style="font-size: 1.2em; font-weight: bold;">■ データの使用について</a><br>
     
+    <div id="user-auth-links" style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ccc;">
+      <div id="auth-guest">
+        <a href="login.html" style="font-size: 1.1em; color: #1a73e8; font-weight: bold;">▶ ログイン</a> / 
+        <a href="signup.html" style="font-size: 1.1em; color: #3498db; font-weight: bold;">▶ 新規アカウント作成</a>
+      </div>
+      <div id="auth-user" style="display: none;">
+        <span style="font-size: 1.1em;">👤 ようこそ、<strong id="user-name-display" style="color: #2ed573;"></strong> さん</span> | 
+        <a href="#" onclick="userLogout()" style="color: #e74c3c; text-decoration: none; font-weight: bold;">[ログアウト]</a>
+      </div>
+    </div>
+
     <div style="margin-top: 15px;">
       <button onclick="toggleDarkMode()" id="dark-mode-btn">🌙 モード切替</button>
       <button onclick="toggleNotification()" id="notify-btn-top" style="margin-left: 10px; cursor: pointer; padding: 5px 12px; border-radius: 5px; border: 1px solid #ccc; background: #fff;">
@@ -45,13 +53,11 @@
 
   <section class="aa" id="admin-section">
     <div id="onecolor"><h2>管理者メニュー</h2></div>
-    
     <div id="admin-auth-inputs">
       <input type="text" id="admin-user" placeholder="管理者ID" style="width: 150px;">
       <input type="password" id="admin-pass" placeholder="パスワード" style="width: 150px;">
-      <button onclick="handleAdminLogin()" class="submit-btn" style="padding: 5px 15px;">ログイン</button>
+      <button onclick="handleAdminLogin()" class="submit-btn">ログイン</button>
     </div>
-
     <div id="admin-console" style="display:none;">
       <p>管理者：<strong id="admin-name"></strong> としてログイン中</p>
       <button onclick="logout()" class="submit-btn" style="background-color: #e74c3c;">ログアウト</button>
@@ -60,15 +66,11 @@
 
   <section class="aa" id="create-thread">
     <div id="onecolor"><h2>新規スレッドを作成する</h2></div>
-    <p>新しい話題を投稿しましょう。画像などはDiscordへ！</p>
     <form id="thread-form">
       <div class="form-group-inner">
         <label for="thread-title">スレッドタイトル</label>
-        <input type="text" id="thread-title" placeholder="タイトルを入力してください" required>
+        <input type="text" id="thread-title" placeholder="タイトル" required>
       </div>
-      
-      <input type="text" id="honey-pot" style="display:none !important;" tabindex="-1" autocomplete="off">
-      
       <div id="admin-thread-option"></div>
       <div class="form-group-inner">
         <label for="user-name">名前（省略可）</label>
@@ -76,7 +78,7 @@
       </div>
       <div class="form-group-inner">
         <label for="content">本文</label>
-        <textarea id="content" rows="8" placeholder="ここに内容を書き込んでください" required></textarea>
+        <textarea id="content" rows="8" required></textarea>
       </div>
       <button type="submit" class="submit-btn" id="create-btn">スレッドを作成する</button>
     </form>
@@ -91,45 +93,25 @@
 
   <script src="config.js"></script>
   <script src="bbs.js"></script>
-
   <script>
-    // --- ユーティリティ ---
-    function escapeHTML(str) {
-      if (!str) return "";
-      return String(str).replace(/[&<>"']/g, m => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-      }[m]));
-    }
-
-    // テーマ切り替え
+    // テーマ・カウンター用のインラインスクリプト
     function toggleDarkMode() {
       const html = document.documentElement;
-      const current = html.getAttribute('data-theme');
-      const next = current === 'dark' ? 'light' : 'dark';
+      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       html.setAttribute('data-theme', next);
       localStorage.setItem('theme', next);
-      
-      const isDark = next === 'dark';
-      document.body.style.backgroundColor = isDark ? '#1a1a1a' : '#f0f2f5';
-      document.body.style.color = isDark ? '#f0f0f0' : '#333';
+      document.body.style.backgroundColor = next === 'dark' ? '#1a1a1a' : '#f0f2f5';
+      document.body.style.color = next === 'dark' ? '#f0f0f0' : '#333';
     }
 
-    // 初期化処理
     document.addEventListener('DOMContentLoaded', () => {
-      // テーマ復元
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme === 'dark') {
+      if (localStorage.getItem('theme') === 'dark') {
         document.documentElement.setAttribute('data-theme', 'dark');
         document.body.style.backgroundColor = '#1a1a1a';
         document.body.style.color = '#f0f0f0';
       }
-
-      // オンラインカウンター（デコレーション）
       const counterEl = document.getElementById('online-counter');
-      if (counterEl) {
-        const num = Math.floor(Math.random() * 8) + 1;
-        counterEl.innerText = `現在 ${num} 人が閲覧中`;
-      }
+      if (counterEl) counterEl.innerText = `現在 ${Math.floor(Math.random() * 8) + 1} 人が閲覧中`;
     });
   </script>
 </body>
