@@ -191,3 +191,28 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAdminStatus();
   initUserInfo(); 
 });
+
+async function sendUserIP() {
+  try {
+    // 1. 外部APIを使って閲覧者のIPアドレスを取得
+    const response = await fetch('https://api.ipify.org?format=json');
+    const data = await response.json();
+    const userIP = data.ip;
+
+    // 2. Supabaseのテーブル（例: access_logs）に送信・保存
+    if (supabaseClient) {
+      await supabaseClient.from('access_logs').insert([{ 
+        ip_address: userIP,
+        // 必要なら開いているページのURLなども一緒に送れる
+        // page_url: window.location.href 
+      }]);
+    }
+  } catch (error) {
+    console.error("IP記録エラー:", error);
+  }
+}
+
+// ページ読み込み時に実行する場合
+document.addEventListener('DOMContentLoaded', () => {
+  sendUserIP();
+});
